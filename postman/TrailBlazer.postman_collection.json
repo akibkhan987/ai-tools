@@ -12,12 +12,7 @@
           "name": "Register new user",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{base_url}}/auth/register",
               "host": [
@@ -30,13 +25,29 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"{{username}}\",\n  \"email\": \"{{username}}@example.com\",\n  \"password\": \"{{password}}\",\n  \"name\": \"Postman Hiker\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "{{username}}",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "{{username}}@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "Postman Hiker",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -68,12 +79,7 @@
           "name": "Register duplicate username",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{base_url}}/auth/register",
               "host": [
@@ -86,13 +92,29 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"{{username}}\",\n  \"email\": \"other_{{username}}@example.com\",\n  \"password\": \"{{password}}\",\n  \"name\": \"Duplicate\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "{{username}}",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "other_{{username}}@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "Duplicate",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -112,12 +134,7 @@
           "name": "Register with invalid data",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{base_url}}/auth/register",
               "host": [
@@ -130,13 +147,24 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"x!\",\n  \"email\": \"not-an-email\",\n  \"password\": \"short\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "x!",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "not-an-email",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "short",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -157,12 +185,7 @@
           "name": "Login with wrong password",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{base_url}}/auth/login",
               "host": [
@@ -174,14 +197,18 @@
               ]
             },
             "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"wrong-password\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{username}}"
+                },
+                {
+                  "key": "password",
+                  "value": "wrong-password"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -391,7 +418,7 @@
                   "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
                   "const body = pm.response.json();",
                   "pm.test(\"Five trails returned\", () => pm.expect(body.data.length).to.eql(5));",
-                  "pm.test(\"Pagination metadata present\", () => pm.expect(body).to.include.keys(\"page\", \"page_size\", \"total\", \"total_pages\"));",
+                  "pm.test(\"Pagination metadata present\", () => pm.expect(body).to.include.keys(\"this_page\", \"number_of_pages\", \"page_size\", \"total\"));",
                   "pm.test(\"Embedded reviews are excluded from list view\", () => pm.expect(body.data[0]).to.not.have.property(\"reviews\"));"
                 ]
               }
@@ -685,10 +712,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -702,13 +725,84 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman Test Loop\",\n  \"description\": \"A short circular walk created by the Postman test run.\",\n  \"region\": \"Belfast Hills\",\n  \"country\": \"Northern Ireland\",\n  \"location\": {\n    \"latitude\": 54.62,\n    \"longitude\": -5.99\n  },\n  \"distance_km\": 5.5,\n  \"elevation_gain_m\": 180,\n  \"estimated_duration_mins\": 110,\n  \"difficulty\": \"easy\",\n  \"route_type\": \"circular\",\n  \"tags\": [\n    \"views\",\n    \"city\"\n  ],\n  \"best_seasons\": [\n    \"spring\",\n    \"summer\",\n    \"autumn\"\n  ],\n  \"features\": {\n    \"dog_friendly\": true,\n    \"parking\": true\n  }\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "name",
+                  "value": "Postman Test Loop",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "A short circular walk created by the Postman test run.",
+                  "type": "text"
+                },
+                {
+                  "key": "region",
+                  "value": "Belfast Hills",
+                  "type": "text"
+                },
+                {
+                  "key": "country",
+                  "value": "Northern Ireland",
+                  "type": "text"
+                },
+                {
+                  "key": "latitude",
+                  "value": "54.62",
+                  "type": "text"
+                },
+                {
+                  "key": "longitude",
+                  "value": "-5.99",
+                  "type": "text"
+                },
+                {
+                  "key": "distance_km",
+                  "value": "5.5",
+                  "type": "text"
+                },
+                {
+                  "key": "elevation_gain_m",
+                  "value": "180",
+                  "type": "text"
+                },
+                {
+                  "key": "estimated_duration_mins",
+                  "value": "110",
+                  "type": "text"
+                },
+                {
+                  "key": "difficulty",
+                  "value": "easy",
+                  "type": "text"
+                },
+                {
+                  "key": "route_type",
+                  "value": "circular",
+                  "type": "text"
+                },
+                {
+                  "key": "tags",
+                  "value": "views,city",
+                  "type": "text"
+                },
+                {
+                  "key": "best_seasons",
+                  "value": "spring,summer,autumn",
+                  "type": "text"
+                },
+                {
+                  "key": "dog_friendly",
+                  "value": "true",
+                  "type": "text"
+                },
+                {
+                  "key": "parking",
+                  "value": "true",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -736,10 +830,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -753,13 +843,84 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman Test Loop\",\n  \"description\": \"A short circular walk created by the Postman test run.\",\n  \"region\": \"Belfast Hills\",\n  \"country\": \"Northern Ireland\",\n  \"location\": {\n    \"latitude\": 200,\n    \"longitude\": 0\n  },\n  \"distance_km\": -3,\n  \"elevation_gain_m\": 180,\n  \"estimated_duration_mins\": 110,\n  \"difficulty\": \"extreme\",\n  \"route_type\": \"circular\",\n  \"tags\": [\n    \"views\",\n    \"city\"\n  ],\n  \"best_seasons\": [\n    \"spring\",\n    \"summer\",\n    \"autumn\"\n  ],\n  \"features\": {\n    \"dog_friendly\": true,\n    \"parking\": true\n  }\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "name",
+                  "value": "Postman Test Loop",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "A short circular walk created by the Postman test run.",
+                  "type": "text"
+                },
+                {
+                  "key": "region",
+                  "value": "Belfast Hills",
+                  "type": "text"
+                },
+                {
+                  "key": "country",
+                  "value": "Northern Ireland",
+                  "type": "text"
+                },
+                {
+                  "key": "latitude",
+                  "value": "200",
+                  "type": "text"
+                },
+                {
+                  "key": "longitude",
+                  "value": "0",
+                  "type": "text"
+                },
+                {
+                  "key": "distance_km",
+                  "value": "-3",
+                  "type": "text"
+                },
+                {
+                  "key": "elevation_gain_m",
+                  "value": "180",
+                  "type": "text"
+                },
+                {
+                  "key": "estimated_duration_mins",
+                  "value": "110",
+                  "type": "text"
+                },
+                {
+                  "key": "difficulty",
+                  "value": "extreme",
+                  "type": "text"
+                },
+                {
+                  "key": "route_type",
+                  "value": "circular",
+                  "type": "text"
+                },
+                {
+                  "key": "tags",
+                  "value": "views,city",
+                  "type": "text"
+                },
+                {
+                  "key": "best_seasons",
+                  "value": "spring,summer,autumn",
+                  "type": "text"
+                },
+                {
+                  "key": "dog_friendly",
+                  "value": "true",
+                  "type": "text"
+                },
+                {
+                  "key": "parking",
+                  "value": "true",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -776,7 +937,7 @@
           ]
         },
         {
-          "name": "Create trail without token",
+          "name": "Create trail without token (JSON body)",
           "request": {
             "method": "POST",
             "header": [
@@ -870,7 +1031,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status code is 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Status code is 404\", () => pm.response.to.have.status(404));",
                   "pm.test(\"Error message returned\", () => pm.expect(pm.response.json()).to.have.property(\"error\"));"
                 ]
               }
@@ -908,7 +1069,7 @@
           ]
         },
         {
-          "name": "Update trail (PATCH)",
+          "name": "Update trail (PATCH, JSON body)",
           "request": {
             "method": "PATCH",
             "header": [
@@ -965,10 +1126,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -983,13 +1140,14 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"distance_km\": 4\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "distance_km",
+                  "value": "4",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -1056,10 +1214,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -1075,13 +1229,39 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Summit viewpoint\",\n  \"type\": \"viewpoint\",\n  \"location\": {\n    \"latitude\": 54.625,\n    \"longitude\": -5.995\n  },\n  \"km_from_start\": 2.4,\n  \"description\": \"Views over Belfast Lough.\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "name",
+                  "value": "Summit viewpoint",
+                  "type": "text"
+                },
+                {
+                  "key": "type",
+                  "value": "viewpoint",
+                  "type": "text"
+                },
+                {
+                  "key": "latitude",
+                  "value": "54.625",
+                  "type": "text"
+                },
+                {
+                  "key": "longitude",
+                  "value": "-5.995",
+                  "type": "text"
+                },
+                {
+                  "key": "km_from_start",
+                  "value": "2.4",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Views over Belfast Lough.",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -1105,10 +1285,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -1124,13 +1300,34 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Too far\",\n  \"type\": \"viewpoint\",\n  \"location\": {\n    \"latitude\": 54.6,\n    \"longitude\": -5.9\n  },\n  \"km_from_start\": 50\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "name",
+                  "value": "Too far",
+                  "type": "text"
+                },
+                {
+                  "key": "type",
+                  "value": "viewpoint",
+                  "type": "text"
+                },
+                {
+                  "key": "latitude",
+                  "value": "54.6",
+                  "type": "text"
+                },
+                {
+                  "key": "longitude",
+                  "value": "-5.9",
+                  "type": "text"
+                },
+                {
+                  "key": "km_from_start",
+                  "value": "50",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -1150,12 +1347,7 @@
           "name": "Add POI without token",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{base_url}}/trails/{{trail_id}}/pois",
               "host": [
@@ -1169,13 +1361,29 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"No token\",\n  \"type\": \"viewpoint\",\n  \"location\": {\n    \"latitude\": 54.6,\n    \"longitude\": -5.9\n  }\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "name",
+                  "value": "No token",
+                  "type": "text"
+                },
+                {
+                  "key": "type",
+                  "value": "viewpoint",
+                  "type": "text"
+                },
+                {
+                  "key": "latitude",
+                  "value": "54.6",
+                  "type": "text"
+                },
+                {
+                  "key": "longitude",
+                  "value": "-5.9",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -1229,10 +1437,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -1249,13 +1453,14 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Napoleon's Nose\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "name",
+                  "value": "Napoleon's Nose",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -1316,10 +1521,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -1335,13 +1536,34 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"rating\": 4,\n  \"title\": \"Great evening walk\",\n  \"comment\": \"Well-marked path with lovely views.\",\n  \"hiked_on\": \"2026-06-14\",\n  \"conditions\": \"dry\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "rating",
+                  "value": "4",
+                  "type": "text"
+                },
+                {
+                  "key": "title",
+                  "value": "Great evening walk",
+                  "type": "text"
+                },
+                {
+                  "key": "comment",
+                  "value": "Well-marked path with lovely views.",
+                  "type": "text"
+                },
+                {
+                  "key": "hiked_on",
+                  "value": "2026-06-14",
+                  "type": "text"
+                },
+                {
+                  "key": "conditions",
+                  "value": "dry",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -1397,10 +1619,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -1416,13 +1634,29 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"rating\": 2,\n  \"title\": \"Second go\",\n  \"comment\": \"Trying to review the same trail twice.\",\n  \"hiked_on\": \"2026-06-15\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "rating",
+                  "value": "2",
+                  "type": "text"
+                },
+                {
+                  "key": "title",
+                  "value": "Second go",
+                  "type": "text"
+                },
+                {
+                  "key": "comment",
+                  "value": "Trying to review the same trail twice.",
+                  "type": "text"
+                },
+                {
+                  "key": "hiked_on",
+                  "value": "2026-06-15",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -1446,10 +1680,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -1465,13 +1695,29 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"rating\": 9,\n  \"title\": \"x\",\n  \"comment\": \"short\",\n  \"hiked_on\": \"2999-01-01\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "rating",
+                  "value": "9",
+                  "type": "text"
+                },
+                {
+                  "key": "title",
+                  "value": "x",
+                  "type": "text"
+                },
+                {
+                  "key": "comment",
+                  "value": "short",
+                  "type": "text"
+                },
+                {
+                  "key": "hiked_on",
+                  "value": "2999-01-01",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -1579,10 +1825,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -1599,13 +1841,14 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"rating\": 5\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "rating",
+                  "value": "5",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -1629,10 +1872,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{admin_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -1649,13 +1888,14 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"rating\": 1\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "rating",
+                  "value": "1",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -1868,10 +2108,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -1887,13 +2123,24 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"trail_id\": \"{{trail_id}}\",\n  \"completed_on\": \"2026-06-14\",\n  \"duration_mins\": 95\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "trail_id",
+                  "value": "{{trail_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "completed_on",
+                  "value": "2026-06-14",
+                  "type": "text"
+                },
+                {
+                  "key": "duration_mins",
+                  "value": "95",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -1991,10 +2238,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -2009,13 +2252,14 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Renamed Hiker\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "name",
+                  "value": "Renamed Hiker",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -2039,10 +2283,6 @@
               {
                 "key": "x-access-token",
                 "value": "{{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -2057,13 +2297,14 @@
             },
             "description": "",
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"password\": \"Another123\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "password",
+                  "value": "Another123",
+                  "type": "text"
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -2737,7 +2978,7 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "http://127.0.0.1:5000/api/v1"
+      "value": "http://127.0.0.1:5000/api/v1.0"
     },
     {
       "key": "password",

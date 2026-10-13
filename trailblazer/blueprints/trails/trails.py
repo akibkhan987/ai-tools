@@ -4,11 +4,11 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, g, request, url_for
 
-from .. import db
-from ..auth_utils import is_admin, jwt_required
-from ..utils import (ApiError, bool_arg, choice_arg, float_arg, get_json_body, int_arg,
+from ... import db
+from ...decorators import is_admin, jwt_required
+from ...utils import (ApiError, bool_arg, choice_arg, float_arg, int_arg,
                      paginated, pagination_args, parse_object_id, respond)
-from ..validation import DIFFICULTIES, FEATURE_KEYS, ROUTE_TYPES, SEASONS, TRAIL_SCHEMA, validate
+from ...validation import DIFFICULTIES, FEATURE_KEYS, ROUTE_TYPES, SEASONS, TRAIL_SCHEMA, validate_request
 
 trails_bp = Blueprint("trails", __name__)
 
@@ -19,7 +19,7 @@ SUMMARY_PROJECTION = {"reviews": 0, "points_of_interest": 0}
 
 
 def get_trail_or_404(trail_id, projection=None):
-    trail = db.trails().find_one({"_id": parse_object_id(trail_id, "trail id")}, projection)
+    trail = db.trails().find_one({"_id": parse_object_id(trail_id, "trail ID")}, projection)
     if trail is None:
         raise ApiError(404, "Trail not found")
     return trail
@@ -132,7 +132,7 @@ def get_trail(trail_id):
 @trails_bp.route("/trails", methods=["POST"])
 @jwt_required
 def create_trail():
-    data = validate(get_json_body(), TRAIL_SCHEMA)
+    data = validate_request(TRAIL_SCHEMA)
     duplicate = db.trails().find_one({
         "name": {"$regex": f"^{re.escape(data['name'])}$", "$options": "i"},
         "region": data["region"],
@@ -164,7 +164,7 @@ def create_trail():
 def _update_trail(trail_id, partial):
     trail = get_trail_or_404(trail_id, {"created_by": 1, "features": 1})
     ensure_can_modify(trail)
-    data = validate(get_json_body(), TRAIL_SCHEMA, partial=partial)
+    data = validate_request(TRAIL_SCHEMA, partial=partial)
 
     if "features" in data:
         # Merge so a PATCH of one flag doesn't wipe the others

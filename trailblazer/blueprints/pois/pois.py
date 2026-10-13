@@ -4,17 +4,17 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from flask import Blueprint, request, url_for
 
-from .. import db
-from ..auth_utils import jwt_required
-from ..utils import ApiError, choice_arg, get_json_body, parse_object_id, respond
-from ..validation import POI_SCHEMA, POI_TYPES, validate
-from .trails import ensure_can_modify, get_trail_or_404
+from ... import db
+from ...decorators import jwt_required
+from ...utils import ApiError, choice_arg, parse_object_id, respond
+from ...validation import POI_SCHEMA, POI_TYPES, validate_request
+from ..trails.trails import ensure_can_modify, get_trail_or_404
 
 pois_bp = Blueprint("pois", __name__)
 
 
 def get_poi_or_404(trail, poi_id):
-    pid = parse_object_id(poi_id, "point of interest id")
+    pid = parse_object_id(poi_id, "point of interest ID")
     for poi in trail.get("points_of_interest", []):
         if poi["_id"] == pid:
             return poi
@@ -44,7 +44,7 @@ def get_poi(trail_id, poi_id):
 def add_poi(trail_id):
     trail = get_trail_or_404(trail_id, {"created_by": 1, "distance_km": 1})
     ensure_can_modify(trail)
-    data = validate(get_json_body(), POI_SCHEMA)
+    data = validate_request(POI_SCHEMA)
     if data.get("km_from_start", 0) > trail["distance_km"]:
         raise ApiError(400, "Validation failed",
                        {"km_from_start": f"cannot exceed the trail distance ({trail['distance_km']} km)"})
@@ -61,7 +61,7 @@ def update_poi(trail_id, poi_id):
     trail = get_trail_or_404(trail_id, {"created_by": 1, "distance_km": 1, "points_of_interest": 1})
     ensure_can_modify(trail)
     poi = get_poi_or_404(trail, poi_id)
-    data = validate(get_json_body(), POI_SCHEMA, partial=request.method == "PATCH")
+    data = validate_request(POI_SCHEMA, partial=request.method == "PATCH")
     if data.get("km_from_start", 0) > trail["distance_km"]:
         raise ApiError(400, "Validation failed",
                        {"km_from_start": f"cannot exceed the trail distance ({trail['distance_km']} km)"})

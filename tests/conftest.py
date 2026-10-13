@@ -41,7 +41,7 @@ def client(app):
 
 
 def login(client, username, password):
-    response = client.post("/api/v1/auth/login", auth=(username, password))
+    response = client.post("/api/v1.0/auth/login", auth=(username, password))
     assert response.status_code == 200, response.get_json()
     return {"x-access-token": response.get_json()["token"]}
 
@@ -70,7 +70,7 @@ def new_user(client):
     _counter["n"] += 1
     username = f"tester_{os.getpid()}_{_counter['n']}"
     password = "Secret123"
-    response = client.post("/api/v1/auth/register", json={
+    response = client.post("/api/v1.0/auth/register", json={
         "username": username, "email": f"{username}@example.com", "password": password, "name": "Test User"})
     assert response.status_code == 201, response.get_json()
     return response.get_json()["user"], login(client, username, password)
@@ -101,7 +101,7 @@ def make_trail(client):
     def _make(headers, **overrides):
         created["n"] += 1
         body = {**VALID_TRAIL, "name": f"Test Trail {os.getpid()}-{id(created)}-{created['n']}", **overrides}
-        response = client.post("/api/v1/trails", json=body, headers=headers)
+        response = client.post("/api/v1.0/trails", json=body, headers=headers)
         assert response.status_code == 201, response.get_json()
         return response.get_json()
 

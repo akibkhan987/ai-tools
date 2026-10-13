@@ -1,4 +1,4 @@
-"""JWT token handling, password hashing and access-control decorators."""
+"""Access-control decorators (@jwt_required, @admin_required) plus password and JWT helpers."""
 import uuid
 from datetime import datetime, timedelta, timezone
 from functools import wraps

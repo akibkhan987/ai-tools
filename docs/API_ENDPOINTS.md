@@ -1,17 +1,25 @@
 # TrailBlazer API – Endpoint Summary
 
-Base URL: `http://127.0.0.1:5000/api/v1`
+Base URL: `http://127.0.0.1:5000/api/v1.0`
 
 **Auth column:** — public · 🔑 any logged-in user · 👤 owner (or admin) · 🛡 admin only.
 Authenticated requests send the JWT in the `x-access-token` header.
-Request bodies are JSON (`Content-Type: application/json`). Every error response has the form `{"error": "...", "details": {...}}`.
+Request bodies are sent as **x-www-form-urlencoded** fields (as in the module practicals) or as JSON. In form data:
+
+- send a location as `latitude` and `longitude`
+- send lists as comma-separated text
+- send trail features as individual flags, e.g. `dog_friendly=true`
+
+Every error response has the form `{"error": "...", "details": {...}}`. An id that is malformed or doesn't exist returns **404**, following the module's API design (BE03 Table 3.2).
+
+List endpoints return `{"this_page", "number_of_pages", "page_size", "total", "data"}`.
 
 ## Authentication
 
 | Method | Endpoint | Auth | Description | Success | Errors |
 |---|---|---|---|---|---|
 | POST | `/auth/register` | — | Create an account (`username`, `email`, `password`, `name`) | 201 | 400, 409, 415 |
-| POST | `/auth/login` | Basic | Log in with Basic Auth or JSON; returns a JWT valid for 60 min | 200 | 401 |
+| POST | `/auth/login` | Basic | Log in with Basic Auth (or username/password fields); returns a JWT valid for 60 min | 200 | 401 |
 | POST | `/auth/logout` | 🔑 | Revoke the current token | 200 | 401 |
 | GET | `/auth/me` | 🔑 | Current user's profile | 200 | 401 |
 
@@ -21,7 +29,7 @@ Request bodies are JSON (`Content-Type: application/json`). Every error response
 |---|---|---|---|---|---|
 | GET | `/trails` | — | List trails: paginated, filterable, sortable (see below) | 200 | 400 |
 | GET | `/trails/nearby?lat=&lng=&radius_km=&limit=&difficulty=` | — | Trails nearest a point, with `distance_km` | 200 | 400 |
-| GET | `/trails/{id}` | — | One trail with its POIs and 3 latest reviews | 200 | 400, 404 |
+| GET | `/trails/{id}` | — | One trail with its POIs and 3 latest reviews | 200 | 404 |
 | GET | `/trails/{id}/nearby?radius_km=&limit=` | — | Other trails close to this one | 200 | 400, 404 |
 | POST | `/trails` | 🔑 | Create a trail | 201 | 400, 401, 409, 415 |
 | PUT | `/trails/{id}` | 👤 | Replace all editable fields (all required fields needed) | 200 | 400, 401, 403, 404 |
@@ -32,7 +40,7 @@ Request bodies are JSON (`Content-Type: application/json`). Every error response
 
 | Parameter | Example | Meaning |
 |---|---|---|
-| `pn`, `ps` | `pn=2&ps=10` | Page number (≥1) and page size (1–50, default 10) |
+| `pn`, `ps` | `pn=2&ps=10` | Page number (≥1) and page size (1–50, default 10), as in BE04 |
 | `q` | `q=causeway` | Case-insensitive search of name, description and region |
 | `region`, `country` | `region=Lake District` | Exact match, case-insensitive |
 | `difficulty` | `difficulty=easy,moderate` | One or more of easy / moderate / hard / strenuous |
@@ -51,7 +59,7 @@ Request bodies are JSON (`Content-Type: application/json`). Every error response
 | Method | Endpoint | Auth | Description | Success | Errors |
 |---|---|---|---|---|---|
 | GET | `/trails/{id}/reviews?pn=&ps=&sort=&min_rating=` | — | Paginated reviews; sort = newest, oldest, highest, lowest or helpful | 200 | 400, 404 |
-| GET | `/trails/{id}/reviews/{review_id}` | — | One review | 200 | 400, 404 |
+| GET | `/trails/{id}/reviews/{review_id}` | — | One review | 200 | 404 |
 | POST | `/trails/{id}/reviews` | 🔑 | Add a review (`rating`, `title`, `comment`, `hiked_on`, `conditions`); one per user per trail | 201 | 400, 401, 404, 409 |
 | PUT | `/trails/{id}/reviews/{review_id}` | author | Replace your review | 200 | 400, 401, 403, 404 |
 | PATCH | `/trails/{id}/reviews/{review_id}` | author | Update part of your review | 200 | 400, 401, 403, 404 |
@@ -66,7 +74,7 @@ Adding, changing or deleting a review recalculates the trail's `avg_rating` and 
 | Method | Endpoint | Auth | Description | Success | Errors |
 |---|---|---|---|---|---|
 | GET | `/trails/{id}/pois?type=` | — | POIs ordered along the route, optionally filtered by type | 200 | 400, 404 |
-| GET | `/trails/{id}/pois/{poi_id}` | — | One POI | 200 | 400, 404 |
+| GET | `/trails/{id}/pois/{poi_id}` | — | One POI | 200 | 404 |
 | POST | `/trails/{id}/pois` | 👤 | Add a POI (`name`, `type`, `location`, `description`, `km_from_start`) | 201 | 400, 401, 403, 404 |
 | PUT / PATCH | `/trails/{id}/pois/{poi_id}` | 👤 | Replace or update a POI | 200 | 400, 401, 403, 404 |
 | DELETE | `/trails/{id}/pois/{poi_id}` | 👤 | Delete a POI | 204 | 401, 403, 404 |
@@ -76,7 +84,7 @@ Adding, changing or deleting a review recalculates the trail's `avg_rating` and 
 | Method | Endpoint | Auth | Description | Success | Errors |
 |---|---|---|---|---|---|
 | GET | `/users?q=&pn=&ps=` | 🛡 | List or search users | 200 | 401, 403 |
-| GET | `/users/{user_id}` | self or 🛡 | One user | 200 | 400, 401, 403, 404 |
+| GET | `/users/{user_id}` | self or 🛡 | One user | 200 | 401, 403, 404 |
 | PATCH | `/users/{user_id}/role` | 🛡 | Grant or revoke admin (`{"admin": true}`) | 200 | 400, 401, 403, 404 |
 | DELETE | `/users/{user_id}` | self or 🛡 | Delete an account and its reviews and votes; ratings are recalculated | 204 | 401, 403, 404 |
 | GET | `/users/me` | 🔑 | Own profile | 200 | 401 |

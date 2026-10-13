@@ -4,10 +4,10 @@ from datetime import datetime, timezone
 from flask import Blueprint, g, request
 from pymongo.errors import DuplicateKeyError
 
-from .. import db
-from ..auth_utils import check_password, hash_password, issue_token, jwt_required
-from ..utils import ApiError, get_json_body, respond
-from ..validation import REGISTER_SCHEMA, check_password_strength, validate
+from ... import db
+from ...decorators import check_password, hash_password, issue_token, jwt_required
+from ...utils import ApiError, respond
+from ...validation import REGISTER_SCHEMA, check_password_strength, validate_request
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -19,7 +19,7 @@ def public_user(user):
 
 @auth_bp.route("/auth/register", methods=["POST"])
 def register():
-    data = validate(get_json_body(), REGISTER_SCHEMA)
+    data = validate_request(REGISTER_SCHEMA)
     check_password_strength(data["password"])
     data["username"] = data["username"].lower()
     data["email"] = data["email"].lower()
@@ -45,17 +45,18 @@ def register():
 
 @auth_bp.route("/auth/login", methods=["POST"])
 def login():
-    """Log in with HTTP Basic Auth (as in the module) or a JSON body."""
+    """Log in with HTTP Basic Auth (as in the module), or with form/JSON fields."""
     auth = request.authorization
     if auth and auth.username:
         username, password = auth.username, auth.password
     else:
-        body = request.get_json(silent=True) or {}
+        body = request.get_json(silent=True) if request.is_json else request.form
+        body = body or {}
         username, password = body.get("username"), body.get("password")
 
     if not isinstance(username, str) or not isinstance(password, str) or not username or not password:
         raise ApiError(401, "Username and password are required",
-                       {"hint": "Use Basic Auth or a JSON body with 'username' and 'password'"})
+                       {"hint": "Use Basic Auth, or send 'username' and 'password' as form or JSON fields"})
 
     user = db.users().find_one({"username": username.lower()})
     # Same message for unknown user and wrong password so accounts can't be enumerated

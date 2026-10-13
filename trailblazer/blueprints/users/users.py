@@ -6,12 +6,13 @@ from bson import ObjectId
 from flask import Blueprint, g, request
 from pymongo.errors import DuplicateKeyError
 
-from .. import db
-from ..auth_utils import admin_required, check_password, hash_password, is_admin, jwt_required
-from ..utils import (ApiError, get_json_body, paginated, pagination_args, parse_object_id, respond)
-from ..validation import COMPLETION_SCHEMA, PROFILE_SCHEMA, check_password_strength, validate
-from .reviews import refresh_rating
-from .trails import get_trail_or_404
+from ... import db
+from ...decorators import admin_required, check_password, hash_password, is_admin, jwt_required
+from ...utils import (ApiError, paginated, pagination_args, parse_object_id, respond)
+from ...validation import (COMPLETION_SCHEMA, PROFILE_SCHEMA, ROLE_SCHEMA, check_password_strength, read_body,
+                           validate, validate_request)
+from ..reviews.reviews import refresh_rating
+from ..trails.trails import get_trail_or_404
 
 users_bp = Blueprint("users", __name__)
 
@@ -41,7 +42,7 @@ def list_users():
 @users_bp.route("/users/<user_id>", methods=["GET"])
 @jwt_required
 def get_user(user_id):
-    uid = parse_object_id(user_id, "user id")
+    uid = parse_object_id(user_id, "user ID")
     if uid != g.user["_id"] and not is_admin():
         raise ApiError(403, "You can only view your own account")
     user = db.users().find_one({"_id": uid}, PUBLIC_FIELDS)
@@ -54,13 +55,11 @@ def get_user(user_id):
 @jwt_required
 @admin_required
 def set_role(user_id):
-    uid = parse_object_id(user_id, "user id")
-    body = get_json_body()
-    if not isinstance(body.get("admin"), bool):
-        raise ApiError(400, "Validation failed", {"admin": "must be true or false"})
-    if uid == g.user["_id"] and body["admin"] is False:
+    uid = parse_object_id(user_id, "user ID")
+    data = validate_request(ROLE_SCHEMA)
+    if uid == g.user["_id"] and data["admin"] is False:
         raise ApiError(400, "You cannot remove your own admin rights")
-    result = db.users().update_one({"_id": uid}, {"$set": {"admin": body["admin"]}})
+    result = db.users().update_one({"_id": uid}, {"$set": {"admin": data["admin"]}})
     if result.matched_count == 0:
         raise ApiError(404, "User not found")
     return respond(db.users().find_one({"_id": uid}, PUBLIC_FIELDS))
@@ -69,7 +68,7 @@ def set_role(user_id):
 @users_bp.route("/users/<user_id>", methods=["DELETE"])
 @jwt_required
 def delete_user(user_id):
-    uid = parse_object_id(user_id, "user id")
+    uid = parse_object_id(user_id, "user ID")
     if uid != g.user["_id"] and not is_admin():
         raise ApiError(403, "You can only delete your own account")
     if db.users().find_one({"_id": uid}, {"_id": 1}) is None:
@@ -97,7 +96,7 @@ def get_profile():
 @users_bp.route("/users/me", methods=["PATCH"])
 @jwt_required
 def update_profile():
-    body = get_json_body()
+    body = read_body(PROFILE_SCHEMA)
     current_password = body.pop("current_password", None)
     data = validate(body, PROFILE_SCHEMA, partial=True)
 
@@ -148,7 +147,7 @@ def add_favourite(trail_id):
 @users_bp.route("/users/me/favourites/<trail_id>", methods=["DELETE"])
 @jwt_required
 def remove_favourite(trail_id):
-    tid = parse_object_id(trail_id, "trail id")
+    tid = parse_object_id(trail_id, "trail ID")
     result = db.users().update_one({"_id": g.user["_id"], "favourites": tid}, {"$pull": {"favourites": tid}})
     if result.matched_count == 0:
         raise ApiError(404, "Trail is not in your favourites")
@@ -177,7 +176,7 @@ def list_completed():
 @users_bp.route("/users/me/completed", methods=["POST"])
 @jwt_required
 def log_completion():
-    data = validate(get_json_body(), COMPLETION_SCHEMA)
+    data = validate_request(COMPLETION_SCHEMA)
     trail = get_trail_or_404(data["trail_id"], {"_id": 1})
     entry = {"_id": ObjectId(), "trail_id": trail["_id"], "completed_on": data["completed_on"],
              "logged_at": datetime.now(timezone.utc)}
@@ -190,7 +189,7 @@ def log_completion():
 @users_bp.route("/users/me/completed/<entry_id>", methods=["DELETE"])
 @jwt_required
 def delete_completion(entry_id):
-    eid = parse_object_id(entry_id, "entry id")
+    eid = parse_object_id(entry_id, "entry ID")
     result = db.users().update_one({"_id": g.user["_id"], "completed._id": eid},
                                    {"$pull": {"completed": {"_id": eid}}})
     if result.matched_count == 0:

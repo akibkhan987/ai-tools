@@ -110,13 +110,22 @@ Notable techniques:
 
 ## 4. API design
 
-- **Structure:** an application factory (`create_app`) plus one Flask **Blueprint** per resource. Shared concerns live in their own modules: validation, auth, error handling and pagination. Because the database is injected into the factory, tests can point the app at a separate test database.
+- **Structure:** follows the Biz Directory layout from the module: one Flask **Blueprint** per resource in its own folder (`blueprints/trails/trails.py`, `blueprints/reviews/reviews.py`, ...), with access control in `decorators.py`. Two changes from the module layout:
+  - An application factory (`create_app`) replaces the module-level `app`/`db` globals. The database is passed in, so the tests can point the same code at a separate test database.
+  - Validation, error handling and pagination live in shared modules rather than being repeated in each route.
 - **REST conventions:**
   - Nouns for resources, with sub-documents nested under their parent (`/trails/{id}/reviews/{review_id}`).
   - `GET`/`POST`/`PUT`/`PATCH`/`DELETE` used for their proper meanings. PUT needs every required field; PATCH accepts any subset.
   - Favourites use `PUT` because adding one is idempotent: `201` the first time, `200` after.
-  - Status codes: `201` with a `Location` header on create, `204` on delete, `400` validation, `401` unauthenticated, `403` forbidden, `404` missing, `405` wrong method, `409` conflict, `415` non-JSON body.
-  - Errors are always JSON; Flask's HTML error pages are replaced.
+  - Status codes: `201` with a `Location` header on create, `204` on delete, `400` validation, `401` unauthenticated, `403` forbidden, `404` missing or invalid id, `405` wrong method, `409` conflict, `415` unsupported body format.
+  - Errors are always JSON (`{"error": ...}` as in BE04); Flask's HTML error pages are replaced.
+  - As in BE03 Table 3.2, a malformed id is treated the same as an unknown one: **404** with a message such as "Invalid trail ID", never a server error.
+  - Missing or invalid input returns **400** "Validation failed", with a `details` object naming each field. The BE04 examples return 404 "Missing form data"; 400 is used here because the URL was found and only the submitted data was wrong.
+- **Request bodies:** read with `request.form` from `x-www-form-urlencoded` or form-data, exactly as in BE03/BE04 and the Postman demonstrations. JSON is also accepted, so other front ends (e.g. an Angular app) can post JSON. Form values are always strings, so `form_to_payload()` converts them to the schema's types:
+  - numbers and booleans are converted from text
+  - comma-separated text becomes a list
+  - `latitude`/`longitude` become a GeoJSON point
+  - feature flags become the `features` object
 - **Validation:** `validation.py` uses a small declarative `Field`/schema system rather than repeated `if` checks. It handles:
   - type checks (it rejects `true` where a number is expected, which Python would otherwise accept because `bool` is a subclass of `int`)
   - ranges, lengths, enumerations, regex formats, URLs, de-duplicated lowercase tag arrays
@@ -124,8 +133,21 @@ Notable techniques:
   - latitude/longitude bounds, converted to GeoJSON (`[lng, lat]` order)
   - rejection of unknown fields
 
-  Every error is reported at once, so a client can fix a form in one go. Query-string values are validated just as strictly. Malformed ObjectIds give `400`, not a server error.
+  Every error is reported at once, so a client can fix a form in one go. Query-string values are validated just as strictly.
 - **Serialisation:** a custom `JSONProvider` converts `ObjectId` to strings and dates to ISO 8601. This means documents can be returned directly instead of being converted field by field.
+
+### Alignment with the module material
+
+| Module material | Where it is used | Extension beyond the Biz Directory example |
+|---|---|---|
+| BE03: RESTful URL design, nouns not verbs, `/api/v1.0` prefix | Every route: `/api/v1.0/trails/<id>/reviews/<review_id>` | Further nested resources (POIs, helpful votes), user sub-resources (`/users/me/favourites`) |
+| BE03: GET/POST/PUT/DELETE and status codes (Table 3.2) | 200/201/204/404/409 as in the table; `Location` header on 201 | PATCH for partial updates; 400/401/403/415 for validation and authorisation |
+| BE03: sub-document collections (reviews) | `reviews` embedded in trails, with full CRUD | A second sub-document collection (`points_of_interest`) and a user log (`completed`) |
+| BE04: unique ids instead of counters | MongoDB `ObjectId` for documents *and* sub-documents (the database equivalent of `uuid`) | — |
+| BE04: error handling for bad ids and missing data | `parse_object_id()` → 404, `validate()` | Type, range, format and enum checks on every field, as the BE04 note suggests for ratings |
+| BE04: pagination with `pn` and `ps` | All list endpoints | Done in the database (`skip`/`limit`, `$facet`) rather than slicing a list; also applied to reviews (BE04 "Try it now") |
+| BE04 "Try it now": edit only the fields provided | `PATCH /trails/<id>`, `PATCH .../reviews/<id>` | PUT still enforces a full replacement |
+| API Development Hints: search, multi-criteria queries, geo queries, review sorting and pagination, `this_page`/`number_of_pages` | `GET /trails` filters, `/trails/nearby`, review `sort=`, paginated response format | Aggregation-pipeline statistics, favourites, completed-hike log |
 
 ## 5. Authentication and authorisation
 
@@ -145,7 +167,7 @@ Notable techniques:
 
 ## 6. Testing
 
-- **pytest** (`tests/`, 54 tests) runs against a separate `trailblazer_test` database, seeded at start and dropped at the end. It covers:
+- **pytest** (`tests/`, 59 tests) runs against a separate `trailblazer_test` database, seeded at start and dropped at the end. It covers:
   - happy paths, plus validation, authorisation, not-found and conflict cases
   - pagination, filters and sorting
   - geo queries

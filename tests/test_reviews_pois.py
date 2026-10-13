@@ -5,7 +5,7 @@ REVIEW = {"rating": 4, "title": "Lovely walk", "comment": "Great views and a wel
 
 
 def reviews_url(trail_id, review_id=None):
-    url = f"/api/v1/trails/{trail_id}/reviews"
+    url = f"/api/v1.0/trails/{trail_id}/reviews"
     return f"{url}/{review_id}" if review_id else url
 
 
@@ -34,20 +34,35 @@ def test_review_lifecycle_updates_average(client, hiker_headers, new_user, make_
     created = client.post(reviews_url(trail["_id"]), json=REVIEW, headers=other)
     assert created.status_code == 201
     review_id = created.get_json()["_id"]
-    assert client.get(f"/api/v1/trails/{trail['_id']}").get_json()["avg_rating"] == 4
+    assert client.get(f"/api/v1.0/trails/{trail['_id']}").get_json()["avg_rating"] == 4
 
     # second review from the trail owner
     client.post(reviews_url(trail["_id"]), json={**REVIEW, "rating": 1}, headers=hiker_headers)
-    detail = client.get(f"/api/v1/trails/{trail['_id']}").get_json()
+    detail = client.get(f"/api/v1.0/trails/{trail['_id']}").get_json()
     assert detail["avg_rating"] == 2.5 and detail["review_count"] == 2
 
     patched = client.patch(reviews_url(trail["_id"], review_id), json={"rating": 5}, headers=other)
     assert patched.status_code == 200 and patched.get_json()["rating"] == 5
-    assert client.get(f"/api/v1/trails/{trail['_id']}").get_json()["avg_rating"] == 3
+    assert client.get(f"/api/v1.0/trails/{trail['_id']}").get_json()["avg_rating"] == 3
 
     assert client.delete(reviews_url(trail["_id"], review_id), headers=other).status_code == 204
     assert client.get(reviews_url(trail["_id"], review_id)).status_code == 404
-    assert client.get(f"/api/v1/trails/{trail['_id']}").get_json()["avg_rating"] == 1
+    assert client.get(f"/api/v1.0/trails/{trail['_id']}").get_json()["avg_rating"] == 1
+
+
+def test_review_with_form_data(client, hiker_headers, make_trail):
+    trail = make_trail(hiker_headers)
+    form = {"rating": "5", "title": "Form review", "comment": "Sent as x-www-form-urlencoded.",
+            "hiked_on": "2026-04-02", "conditions": "wet"}
+    response = client.post(reviews_url(trail["_id"]), data=form, headers=hiker_headers)
+    assert response.status_code == 201
+    assert response.get_json()["rating"] == 5
+
+
+def test_invalid_review_id_is_404(client, dataset):
+    trail = dataset["trails"][0]
+    assert client.get(reviews_url(trail["_id"], "abc")).status_code == 404
+    assert client.get(reviews_url(trail["_id"], ObjectId())).status_code == 404
 
 
 def test_one_review_per_user(client, hiker_headers, make_trail):
@@ -99,7 +114,7 @@ POI = {"name": "Waterfall view", "type": "waterfall",
 
 def test_poi_crud(client, hiker_headers, make_trail):
     trail = make_trail(hiker_headers)
-    base = f"/api/v1/trails/{trail['_id']}/pois"
+    base = f"/api/v1.0/trails/{trail['_id']}/pois"
 
     created = client.post(base, json=POI, headers=hiker_headers)
     assert created.status_code == 201
@@ -121,7 +136,7 @@ def test_poi_crud(client, hiker_headers, make_trail):
 
 def test_poi_cannot_be_beyond_trail_end(client, hiker_headers, make_trail):
     trail = make_trail(hiker_headers)
-    response = client.post(f"/api/v1/trails/{trail['_id']}/pois", json={**POI, "km_from_start": 99},
+    response = client.post(f"/api/v1.0/trails/{trail['_id']}/pois", json={**POI, "km_from_start": 99},
                            headers=hiker_headers)
     assert response.status_code == 400
 
@@ -129,5 +144,5 @@ def test_poi_cannot_be_beyond_trail_end(client, hiker_headers, make_trail):
 def test_poi_requires_trail_owner(client, hiker_headers, new_user, make_trail):
     trail = make_trail(hiker_headers)
     _, other = new_user
-    response = client.post(f"/api/v1/trails/{trail['_id']}/pois", json=POI, headers=other)
+    response = client.post(f"/api/v1.0/trails/{trail['_id']}/pois", json=POI, headers=other)
     assert response.status_code == 403

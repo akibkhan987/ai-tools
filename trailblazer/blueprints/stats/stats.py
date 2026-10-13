@@ -3,8 +3,8 @@ import re
 
 from flask import Blueprint, request
 
-from .. import db
-from ..utils import int_arg, respond
+from ... import db
+from ...utils import int_arg, respond
 
 stats_bp = Blueprint("stats", __name__)
 

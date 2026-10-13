@@ -11,13 +11,36 @@ from pathlib import Path
 OUT = Path(__file__).with_name("TrailBlazer.postman_collection.json")
 
 
-def req(name, method, path, tests=(), body=None, auth="hiker", query=None, prerequest=None, description=""):
-    """Build one Postman request item. `auth` is 'hiker', 'admin' or None."""
+def to_form(body):
+    """Flatten a body into x-www-form-urlencoded fields, the format used in the module practicals.
+
+    location -> latitude/longitude, features -> one flag per feature, lists -> comma-separated text.
+    """
+    fields = []
+    for key, value in body.items():
+        if key == "location":
+            fields += [("latitude", value["latitude"]), ("longitude", value["longitude"])]
+        elif key == "features":
+            fields += list(value.items())
+        elif isinstance(value, list):
+            fields.append((key, ",".join(value)))
+        else:
+            fields.append((key, value))
+    return [{"key": k, "value": str(v).lower() if isinstance(v, bool) else str(v), "type": "text"}
+            for k, v in fields]
+
+
+def req(name, method, path, tests=(), body=None, auth="hiker", query=None, prerequest=None, description="",
+        as_json=False):
+    """Build one Postman request item. `auth` is 'hiker', 'admin' or None.
+
+    Bodies are sent as x-www-form-urlencoded unless as_json=True.
+    """
     raw_path = path + ("?" + "&".join(f"{k}={v}" for k, v in query.items()) if query else "")
     headers = []
     if auth:
         headers.append({"key": "x-access-token", "value": "{{token}}" if auth == "hiker" else "{{admin_token}}"})
-    if body is not None:
+    if body is not None and as_json:
         headers.append({"key": "Content-Type", "value": "application/json"})
     item = {
         "name": name,
@@ -34,9 +57,11 @@ def req(name, method, path, tests=(), body=None, auth="hiker", query=None, prere
         },
         "event": [],
     }
-    if body is not None:
+    if body is not None and as_json:
         item["request"]["body"] = {"mode": "raw", "raw": json.dumps(body, indent=2),
                                    "options": {"raw": {"language": "json"}}}
+    elif body is not None:
+        item["request"]["body"] = {"mode": "urlencoded", "urlencoded": to_form(body)}
     if tests:
         item["event"].append({"listen": "test", "script": {"type": "text/javascript", "exec": list(tests)}})
     if prerequest:
@@ -96,7 +121,6 @@ auth = folder("Auth", [
                'const d = pm.response.json().details;',
                'pm.test("Each invalid field is reported", () => pm.expect(d).to.have.all.keys("username", "email", "password", "name"));']),
     req("Login with wrong password", "POST", "/auth/login", auth=None,
-        body={"username": "{{username}}", "password": "wrong-password"},
         tests=[status(401), has_error()]),
     {**req("Login as new user (Basic Auth)", "POST", "/auth/login", auth=None,
            tests=[status(200),
@@ -113,6 +137,8 @@ auth = folder("Auth", [
 ], "Registration, login (HTTP Basic Auth) and JWT handling.")
 
 # Postman stores Basic Auth on the request's "auth" block
+auth["item"][3]["request"]["auth"] = {"type": "basic", "basic": [
+    {"key": "username", "value": "{{username}}"}, {"key": "password", "value": "wrong-password"}]}
 auth["item"][4]["request"]["auth"] = {"type": "basic", "basic": [
     {"key": "username", "value": "{{username}}"}, {"key": "password", "value": "{{password}}"}]}
 auth["item"][5]["request"]["auth"] = {"type": "basic", "basic": [
@@ -123,7 +149,7 @@ trails = folder("Trails", [
         tests=[status(200),
                'const body = pm.response.json();',
                'pm.test("Five trails returned", () => pm.expect(body.data.length).to.eql(5));',
-               'pm.test("Pagination metadata present", () => pm.expect(body).to.include.keys("page", "page_size", "total", "total_pages"));',
+               'pm.test("Pagination metadata present", () => pm.expect(body).to.include.keys("this_page", "number_of_pages", "page_size", "total"));',
                'pm.test("Embedded reviews are excluded from list view", () => pm.expect(body.data[0]).to.not.have.property("reviews"));']),
     req("Filter trails (easy/moderate, dog friendly, max 10 km)", "GET", "/trails", auth=None,
         query={"difficulty": "easy,moderate", "dog_friendly": "true", "max_distance": 10, "ps": 50},
@@ -167,14 +193,16 @@ trails = folder("Trails", [
         body={**NEW_TRAIL, "distance_km": -3, "difficulty": "extreme", "location": {"latitude": 200, "longitude": 0}},
         tests=[status(400),
                'pm.test("Field errors listed", () => pm.expect(pm.response.json().details).to.have.all.keys("distance_km", "difficulty", "location"));']),
-    req("Create trail without token", "POST", "/trails", auth=None, body=NEW_TRAIL, tests=[status(401)]),
+    req("Create trail without token (JSON body)", "POST", "/trails", auth=None, body=NEW_TRAIL, as_json=True,
+        tests=[status(401)]),
     req("Get one trail", "GET", "/trails/{{trail_id}}", auth=None,
         tests=[status(200),
                'pm.test("Correct trail", () => pm.expect(pm.response.json().name).to.eql("Postman Test Loop"));']),
-    req("Get trail with invalid id", "GET", "/trails/12345", auth=None, tests=[status(400), has_error()]),
+    req("Get trail with invalid id", "GET", "/trails/12345", auth=None, tests=[status(404), has_error()]),
     req("Get trail that does not exist", "GET", "/trails/000000000000000000000000", auth=None,
         tests=[status(404), has_error()]),
-    req("Update trail (PATCH)", "PATCH", "/trails/{{trail_id}}", body={"distance_km": 6.2, "features": {"cafe": True}},
+    req("Update trail (PATCH, JSON body)", "PATCH", "/trails/{{trail_id}}", as_json=True,
+        body={"distance_km": 6.2, "features": {"cafe": True}},
         tests=[status(200),
                'const t = pm.response.json();',
                'pm.test("Distance updated", () => pm.expect(t.distance_km).to.eql(6.2));',
@@ -307,7 +335,7 @@ collection = {
     },
     "item": [auth, trails, pois, reviews, users, stats, cleanup],
     "variable": [
-        {"key": "base_url", "value": "http://127.0.0.1:5000/api/v1"},
+        {"key": "base_url", "value": "http://127.0.0.1:5000/api/v1.0"},
         {"key": "password", "value": "Hiking2026"},
         {"key": "admin_password", "value": "AdminPass123"},
         {"key": "username", "value": ""},

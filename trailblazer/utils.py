@@ -53,20 +53,16 @@ def register_error_handlers(app):
         return respond({"error": "Internal server error"}, 500)
 
 
-def parse_object_id(value, label="id"):
+def parse_object_id(value, label="ID"):
+    """Convert a URL id to an ObjectId.
+
+    As in the module's API design (BE03 Table 3.2), an id that is not valid is
+    treated the same as one that doesn't exist: 404 Not Found.
+    """
     if not ObjectId.is_valid(value):
-        raise ApiError(400, f"Invalid {label}: '{value}' is not a valid ObjectId")
+        raise ApiError(404, f"Invalid {label}")
     return ObjectId(value)
 
-
-def get_json_body():
-    """Return the request's JSON object or raise a 400/415."""
-    if not request.is_json:
-        raise ApiError(415, "Request body must be JSON (Content-Type: application/json)")
-    body = request.get_json(silent=True)
-    if not isinstance(body, dict):
-        raise ApiError(400, "Request body must be a valid JSON object")
-    return body
 
 
 def int_arg(name, default=None, minimum=None, maximum=None):
@@ -131,10 +127,11 @@ def pagination_args():
 
 
 def paginated(items, total, page, size):
+    """Paginated response format suggested in the module's API Development Hints."""
     return {
-        "data": items,
-        "page": page,
+        "this_page": page,
+        "number_of_pages": math.ceil(total / size) if total else 0,
         "page_size": size,
         "total": total,
-        "total_pages": math.ceil(total / size) if total else 0,
+        "data": items,
     }

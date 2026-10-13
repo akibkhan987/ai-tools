@@ -12,7 +12,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import PageBreak, Paragraph, Preformatted, SimpleDocTemplate, Spacer
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCES = ["app.py", "requirements.txt", "trailblazer/*.py", "trailblazer/blueprints/*.py",
+SOURCES = ["app.py", "requirements.txt", "trailblazer/*.py", "trailblazer/blueprints/*/*.py",
            "seed/*.py", "tests/*.py", "postman/build_collection.py", "scripts/*.py", "scripts/*.sh"]
 
 

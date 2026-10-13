@@ -27,15 +27,15 @@ def create_app(db=None, config_overrides=None):
     app.extensions["mongo_db"] = db
     ensure_indexes(db)
 
-    from .blueprints.auth import auth_bp
-    from .blueprints.trails import trails_bp
-    from .blueprints.reviews import reviews_bp
-    from .blueprints.pois import pois_bp
-    from .blueprints.users import users_bp
-    from .blueprints.stats import stats_bp
+    from .blueprints.auth.auth import auth_bp
+    from .blueprints.trails.trails import trails_bp
+    from .blueprints.reviews.reviews import reviews_bp
+    from .blueprints.pois.pois import pois_bp
+    from .blueprints.users.users import users_bp
+    from .blueprints.stats.stats import stats_bp
 
     for bp in (auth_bp, trails_bp, reviews_bp, pois_bp, users_bp, stats_bp):
-        app.register_blueprint(bp, url_prefix="/api/v1")
+        app.register_blueprint(bp, url_prefix="/api/v1.0")
 
     register_error_handlers(app)
     return app

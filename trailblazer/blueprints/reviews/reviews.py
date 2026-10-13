@@ -4,12 +4,12 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from flask import Blueprint, g, url_for
 
-from .. import db
-from ..auth_utils import is_admin, jwt_required
-from ..utils import (ApiError, choice_arg, get_json_body, int_arg, paginated, pagination_args,
+from ... import db
+from ...decorators import is_admin, jwt_required
+from ...utils import (ApiError, choice_arg, int_arg, paginated, pagination_args,
                      parse_object_id, respond)
-from ..validation import REVIEW_SCHEMA, validate
-from .trails import get_trail_or_404
+from ...validation import REVIEW_SCHEMA, validate_request
+from ..trails.trails import get_trail_or_404
 
 reviews_bp = Blueprint("reviews", __name__)
 
@@ -41,8 +41,8 @@ def refresh_rating(trail_id):
 
 
 def get_review_or_404(trail_id, review_id):
-    tid = parse_object_id(trail_id, "trail id")
-    rid = parse_object_id(review_id, "review id")
+    tid = parse_object_id(trail_id, "trail ID")
+    rid = parse_object_id(review_id, "review ID")
     # $elemMatch projection returns only the matching review from the embedded array
     doc = db.trails().find_one({"_id": tid}, {"reviews": {"$elemMatch": {"_id": rid}}})
     if doc is None:
@@ -95,8 +95,8 @@ def get_review(trail_id, review_id):
 @reviews_bp.route("/trails/<trail_id>/reviews", methods=["POST"])
 @jwt_required
 def add_review(trail_id):
-    tid = parse_object_id(trail_id, "trail id")
-    data = validate(get_json_body(), REVIEW_SCHEMA)
+    tid = parse_object_id(trail_id, "trail ID")
+    data = validate_request(REVIEW_SCHEMA)
     now = datetime.now(timezone.utc)
     review = {
         "_id": ObjectId(),
@@ -127,7 +127,7 @@ def _update_review(trail_id, review_id, partial):
     tid, review = get_review_or_404(trail_id, review_id)
     if review["user_id"] != g.user["_id"]:
         raise ApiError(403, "You can only edit your own reviews")
-    data = validate(get_json_body(), REVIEW_SCHEMA, partial=partial)
+    data = validate_request(REVIEW_SCHEMA, partial=partial)
     data["updated_at"] = datetime.now(timezone.utc)
 
     # The positional operator `$` updates the array element matched in the filter

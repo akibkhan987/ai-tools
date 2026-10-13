@@ -3,9 +3,17 @@
 Each schema maps a field name to a `Field` describing its type and constraints.
 `validate()` returns a cleaned dict ready for MongoDB, or raises a 400 ApiError
 listing every problem found (rather than stopping at the first one).
+
+Request bodies can be sent either as form data (x-www-form-urlencoded or
+form-data, as used with request.form in the module practicals) or as JSON.
+Form values always arrive as strings, so `form_to_payload()` converts them to
+the types the schema expects before validation.
 """
+import math
 import re
 from datetime import date, datetime, timezone
+
+from flask import request
 
 from .utils import ApiError
 
@@ -166,6 +174,80 @@ def validate(payload, schema, partial=False):
     return cleaned
 
 
+def _to_number(value, kind):
+    """Convert a form string to int/float; leave it unchanged if it isn't numeric
+    so that validation reports a helpful 'must be a number' message."""
+    try:
+        number = int(value) if kind == "int" else float(value)
+    except (TypeError, ValueError):
+        return value
+    return number if math.isfinite(number) else value
+
+
+def _to_bool(value):
+    lowered = str(value).strip().lower()
+    if lowered in ("true", "1", "yes", "on"):
+        return True
+    if lowered in ("false", "0", "no", "off"):
+        return False
+    return value
+
+
+def form_to_payload(form, schema):
+    """Turn request.form (all strings) into the typed payload `validate()` expects.
+
+    - numbers and booleans are converted from text
+    - lists accept comma-separated text ("forest,views") or a repeated key
+    - a location is sent as separate `latitude` and `longitude` fields
+    - trail features are sent as individual flags, e.g. dog_friendly=true
+    """
+    payload = {}
+    consumed = set()
+    for name, field in schema.items():
+        if field.kind == "location":
+            if "latitude" in form or "longitude" in form:
+                payload[name] = {"latitude": _to_number(form.get("latitude"), "number"),
+                                 "longitude": _to_number(form.get("longitude"), "number")}
+                consumed |= {"latitude", "longitude"}
+        elif field.kind == "features":
+            flags = {key: _to_bool(form[key]) for key in FEATURE_KEYS if key in form}
+            if flags:
+                payload[name] = flags
+                consumed |= set(flags)
+        elif name in form:
+            consumed.add(name)
+            if field.kind == "str_list":
+                payload[name] = [part for raw in form.getlist(name) for part in raw.split(",") if part.strip()]
+            elif field.kind in ("int", "number"):
+                payload[name] = _to_number(form[name], field.kind)
+            elif field.kind == "bool":
+                payload[name] = _to_bool(form[name])
+            else:
+                payload[name] = form[name]
+    # Anything left over is passed through so unknown fields are still reported
+    for key in form:
+        if key not in consumed:
+            payload[key] = form[key]
+    return payload
+
+
+def read_body(schema):
+    """Return the request body as a dict, from either form data or JSON."""
+    if request.is_json:
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            raise ApiError(400, "Request body must be a valid JSON object")
+        return dict(body)
+    if request.mimetype in ("application/x-www-form-urlencoded", "multipart/form-data"):
+        return form_to_payload(request.form, schema)
+    raise ApiError(415, "Send the request body as form data (x-www-form-urlencoded) or JSON")
+
+
+def validate_request(schema, partial=False):
+    """Read the request body and validate it against `schema` in one step."""
+    return validate(read_body(schema), schema, partial=partial)
+
+
 TRAIL_SCHEMA = {
     "name": Field("str", required=True, min_len=3, max_len=120),
     "description": Field("str", required=True, min_len=10, max_len=2000),
@@ -211,6 +293,10 @@ PROFILE_SCHEMA = {
     "email": REGISTER_SCHEMA["email"],
     "password": REGISTER_SCHEMA["password"],
     "name": REGISTER_SCHEMA["name"],
+}
+
+ROLE_SCHEMA = {
+    "admin": Field("bool", required=True),
 }
 
 COMPLETION_SCHEMA = {
