@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+exports/
+submission/
+trailblazer_collections.zip
+TrailBlazer_code_listing.pdf
