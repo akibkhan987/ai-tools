@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Stake Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky scoreboard header + tab rail; overview = KPI strip, P/L chart, tipster board; ledgers below */
+:root{
+  --bg:#EEF2F0; --surface:#FFFFFF; --surface-2:#F6F8F7; --line:#D9E0DC; --line-strong:#BCC7C1;
+  --fg:#14211C; --muted:#5B6A63; --faint:#8A9791;
+  --accent:#0E5E47; --accent-fg:#FFFFFF; --accent-soft:#DCEDE6;
+  --win:#1B7F45; --win-soft:#DDF1E4; --loss:#B8392A; --loss-soft:#F8E1DD;
+  --pend:#9A6512; --pend-soft:#F6EBD4; --void:#5B6A63; --void-soft:#E7ECE9;
+  --head:#10241D; --head-fg:#E8F1ED; --head-muted:#94ABA1;
+  --shadow:0 1px 2px rgba(16,36,29,.06),0 6px 24px rgba(16,36,29,.06);
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D1311; --surface:#141C19; --surface-2:#18221E; --line:#24312C; --line-strong:#33443D;
+  --fg:#E3ECE8; --muted:#97A8A0; --faint:#6C7D75;
+  --accent:#3DBB8C; --accent-fg:#06140F; --accent-soft:#16352A;
+  --win:#4CC983; --win-soft:#143223; --loss:#F07563; --loss-soft:#3A1B17;
+  --pend:#E0A94A; --pend-soft:#35280F; --void:#97A8A0; --void-soft:#222C28;
+  --head:#08100D; --head-fg:#E3ECE8; --head-muted:#7F948B;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 24px rgba(0,0,0,.25); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D1311; --surface:#141C19; --surface-2:#18221E; --line:#24312C; --line-strong:#33443D;
+  --fg:#E3ECE8; --muted:#97A8A0; --faint:#6C7D75;
+  --accent:#3DBB8C; --accent-fg:#06140F; --accent-soft:#16352A;
+  --win:#4CC983; --win-soft:#143223; --loss:#F07563; --loss-soft:#3A1B17;
+  --pend:#E0A94A; --pend-soft:#35280F; --void:#97A8A0; --void-soft:#222C28;
+  --head:#08100D; --head-fg:#E3ECE8; --head-muted:#7F948B;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 24px rgba(0,0,0,.25); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--head)}
+.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* header */
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--head);color:var(--head-fg)}
+.hrow{display:flex;align-items:center;gap:16px;padding-block:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brand b{font-family:var(--f-display);font-weight:700;font-size:26px;letter-spacing:.02em;text-transform:uppercase;line-height:1}
+.brand span{font-size:12px;color:var(--head-muted);letter-spacing:.04em}
+.hbal{display:flex;gap:18px;align-items:baseline}
+.hbal div{display:flex;flex-direction:column;align-items:flex-end}
+.hbal small{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--head-muted)}
+.hbal strong{font-family:var(--f-mono);font-size:17px;font-weight:600}
+.hact{display:flex;gap:8px}
+nav.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;border-top:1px solid rgba(255,255,255,.07)}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs button{background:none;border:0;color:var(--head-muted);padding:10px 14px;font-family:var(--f-display);font-size:16px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+nav.tabs button:hover{color:var(--head-fg)}
+nav.tabs button[aria-selected="true"]{color:var(--head-fg);border-bottom-color:var(--accent)}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);background:var(--surface);padding:7px 12px;border-radius:8px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--fg);border-color:var(--line)}
+.btn.danger{color:var(--loss);border-color:var(--loss-soft)}
+.btn.sm{padding:3px 8px;font-size:12.5px;border-radius:6px}
+header .btn{background:transparent;color:var(--head-fg);border-color:rgba(255,255,255,.18)}
+header .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+main{padding-block:20px 60px;display:flex;flex-direction:column;gap:20px}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.toolbar .grow{margin-right:auto}
+h2{font-family:var(--f-display);font-weight:700;font-size:22px;letter-spacing:.02em;text-transform:uppercase;margin:0;line-height:1.1;text-wrap:balance}
+h3{font-family:var(--f-display);font-weight:600;font-size:17px;letter-spacing:.05em;text-transform:uppercase;margin:0;color:var(--muted)}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:none;padding:5px 11px;border-radius:6px;cursor:pointer;color:var(--muted);font-weight:500;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);min-width:0}
+.panel-h{display:flex;align-items:center;gap:10px;padding:14px 16px 10px;flex-wrap:wrap}
+.panel-h h3{margin-right:auto}
+.panel-b{padding:0 16px 16px}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.kpi small{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.kpi .v{font-family:var(--f-mono);font-size:24px;font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.kpi .sub{font-size:12px;color:var(--muted)}
+.kpi.hero{background:var(--head);color:var(--head-fg);border-color:var(--head)}
+.kpi.hero small,.kpi.hero .sub{color:var(--head-muted)}
+.pos{color:var(--win)} .neg{color:var(--loss)}
+.kpi.hero .pos{color:#5FD796} .kpi.hero .neg{color:#FF8A78}
+
+.grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px}
+.chart{width:100%;height:260px;display:block}
+.chart text{fill:var(--muted);font-family:var(--f-mono);font-size:10.5px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+/* tables */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+td.num{white-space:nowrap}
+tbody tr:hover td{background:var(--surface-2)}
+.ev{font-weight:500}
+.ev small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap}
+.p-won{background:var(--win-soft);color:var(--win)} .p-lost{background:var(--loss-soft);color:var(--loss)}
+.p-pending{background:var(--pend-soft);color:var(--pend)} .p-void,.p-cashout{background:var(--void-soft);color:var(--void)}
+.p-dep{background:var(--accent-soft);color:var(--accent)} .p-wd{background:var(--pend-soft);color:var(--pend)}
+.tag{display:inline-block;padding:1px 7px;border:1px solid var(--line-strong);border-radius:5px;font-size:12px;color:var(--fg);white-space:nowrap}
+.rowact{display:flex;gap:4px;justify-content:flex-end}
+.btn.del:hover{color:var(--loss);border-color:var(--loss-soft)}
+.btn.del.armed{background:var(--loss);border-color:var(--loss);color:#fff}
+.form-bar{width:60px;height:6px;border-radius:3px;background:var(--line);overflow:hidden;display:inline-block;vertical-align:middle;margin-left:6px}
+.form-bar i{display:block;height:100%;background:var(--win)}
+.streak{display:inline-flex;gap:2px}
+.streak i{width:8px;height:14px;border-radius:2px;display:inline-block}
+.streak .w{background:var(--win)} .streak .l{background:var(--loss)} .streak .v{background:var(--line-strong)}
+
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filters input,.filters select{background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;padding:6px 10px;min-width:0}
+.filters input[type=search]{width:200px;max-width:100%}
+
+.empty{padding:36px 16px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--fg);font-size:15px;margin-bottom:4px}
+.banner{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-radius:var(--r);background:var(--pend-soft);color:var(--fg);border:1px solid var(--line)}
+.banner p{margin:0;margin-right:auto;min-width:0}
+.mini-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mini-stats div{background:var(--surface-2);border-radius:8px;padding:10px 12px}
+.mini-stats small{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.mini-stats b{font-family:var(--f-mono);font-size:17px}
+
+/* modal */
+dialog{border:0;padding:0;border-radius:14px;background:var(--surface);color:var(--fg);width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 32px);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(8,16,13,.55)}
+.dlg-h{display:flex;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
+.dlg-h h2{margin-right:auto;font-size:20px}
+.dlg-b{padding:16px 18px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dlg-f{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line);flex-wrap:wrap}
+.dlg-f .left{margin-right:auto}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fld.full{grid-column:1/-1}
+.fld label{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.fld input,.fld select,.fld textarea{background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+.fld textarea{min-height:60px;resize:vertical}
+.calc{grid-column:1/-1;display:flex;gap:18px;flex-wrap:wrap;background:var(--surface-2);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--muted)}
+.calc b{font-family:var(--f-mono);color:var(--fg)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--head);color:var(--head-fg);padding:10px 16px;border-radius:10px;font-size:13.5px;z-index:50;box-shadow:var(--shadow)}
+.note{font-size:12px;color:var(--muted)}
+
+@media (max-width:900px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid2{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:560px){
+  .hbal{display:none}.dlg-b{grid-template-columns:1fr}.kpi .v{font-size:20px}
+  .mini-stats{grid-template-columns:1fr 1fr}
+  .hide-sm{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<style>html{color-scheme:light}body{margin:0}[hidden]{display:none!important}img{max-width:100%}@media (prefers-color-scheme:dark){html{color-scheme:dark}}</style>
+</head>
+<body>
+
+
+<header>
+  <div class="wrap hrow">
+    <div class="brand"><b>Stake Ledger</b><span>Bets · Tipsters · Bankroll</span></div>
+    <div class="hbal">
+      <div><small>Bankroll</small><strong id="hBank" class="num">—</strong></div>
+      <div><small>All-time P/L</small><strong id="hPL" class="num">—</strong></div>
+    </div>
+    <div class="hact">
+      <button class="btn" id="btnCash" type="button">+ Deposit / Withdraw</button>
+      <button class="btn primary" id="btnBet" type="button">+ Add bet</button>
+    </div>
+  </div>
+  <nav class="tabs wrap" role="tablist" id="tabs">
+    <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+    <button role="tab" data-tab="bets" aria-selected="false">Bets</button>
+    <button role="tab" data-tab="tipsters" aria-selected="false">Tipster groups</button>
+    <button role="tab" data-tab="reports" aria-selected="false">Daily · Weekly · Monthly</button>
+    <button role="tab" data-tab="cash" aria-selected="false">Deposits</button>
+    <button role="tab" data-tab="settings" aria-selected="false">Settings</button>
+  </nav>
+</header>
+
+<main class="wrap" id="main">
+  <div id="sampleBanner" class="banner" hidden>
+    <p><strong>You're looking at example entries.</strong> They're here so you can see how the tracker works. Clear them before adding your own bets.</p>
+    <button class="btn" id="clearSample" type="button">Clear example entries</button>
+  </div>
+  <div id="statusBanner" class="banner" hidden><p id="statusText"></p></div>
+
+  <div class="toolbar" id="periodBar">
+    <h2 class="grow" id="periodTitle">Overview</h2>
+    <div class="seg" id="periodSeg">
+      <button data-p="today" aria-pressed="false">Today</button>
+      <button data-p="week" aria-pressed="false">This week</button>
+      <button data-p="month" aria-pressed="true">This month</button>
+      <button data-p="year" aria-pressed="false">This year</button>
+      <button data-p="all" aria-pressed="false">All time</button>
+    </div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <section data-view="overview" class="view" style="display:flex;flex-direction:column;gap:16px">
+    <div class="kpis" id="kpis"></div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-h"><h3>Profit &amp; loss</h3>
+          <div class="legend"><span><i style="background:var(--win)"></i>Up</span><span><i style="background:var(--loss)"></i>Down</span><span><i style="background:var(--accent);height:3px;vertical-align:3px"></i>Running total</span></div>
+        </div>
+        <div class="panel-b"><svg class="chart" id="plChart" role="img" aria-label="Profit and loss chart"></svg></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Top tipster groups</h3><button class="btn ghost sm" data-goto="tipsters" type="button">See all →</button></div>
+        <div class="panel-b tbl-wrap" id="topTipsters"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Recent bets</h3><button class="btn ghost sm" data-goto="bets" type="button">All bets →</button></div>
+      <div class="tbl-wrap" id="recentBets"></div>
+    </div>
+  </section>
+
+  <!-- BETS -->
+  <section data-view="bets" class="view" hidden>
+    <div class="panel">
+      <div class="panel-h">
+        <h3>Bet history</h3>
+        <div class="filters">
+          <input type="search" id="fSearch" placeholder="Search event or pick" aria-label="Search bets">
+          <select id="fTipster" aria-label="Filter by tipster"><option value="">All tipsters</option></select>
+          <select id="fResult" aria-label="Filter by result">
+            <option value="">All results</option><option value="pending">Pending</option><option value="won">Won</option><option value="lost">Lost</option><option value="void">Void</option><option value="cashout">Cash out</option>
+          </select>
+        </div>
+      </div>
+      <div class="tbl-wrap" id="betsTable"></div>
+    </div>
+  </section>
+
+  <!-- TIPSTERS -->
+  <section data-view="tipsters" class="view" hidden>
+    <div class="panel">
+      <div class="panel-h"><h3>Tipster groups leaderboard</h3><span class="note">Ranked by profit in the selected period. Settled bets only.</span></div>
+      <div class="tbl-wrap" id="tipstersTable"></div>
+    </div>
+  </section>
+
+  <!-- REPORTS -->
+  <section data-view="reports" class="view" hidden>
+    <div class="toolbar">
+      <div class="seg" id="groupSeg">
+        <button data-g="day" aria-pressed="true">Daily</button>
+        <button data-g="week" aria-pressed="false">Weekly</button>
+        <button data-g="month" aria-pressed="false">Monthly</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3 id="reportTitle">Daily breakdown</h3></div>
+      <div class="panel-b"><svg class="chart" id="repChart" role="img" aria-label="Breakdown chart"></svg></div>
+      <div class="tbl-wrap" id="reportTable"></div>
+    </div>
+  </section>
+
+  <!-- CASH -->
+  <section data-view="cash" class="view" hidden>
+    <div class="panel">
+      <div class="panel-h"><h3>Deposits &amp; withdrawals</h3><button class="btn sm" id="btnCash2" type="button">+ Add entry</button></div>
+      <div class="panel-b"><div class="mini-stats" id="cashStats"></div></div>
+      <div class="tbl-wrap" id="cashTable"></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section data-view="settings" class="view" hidden>
+    <div class="panel">
+      <div class="panel-h"><h3>Settings</h3></div>
+      <div class="panel-b" style="display:grid;gap:16px;max-width:520px">
+        <div class="fld"><label for="sCurrency">Currency symbol</label>
+          <select id="sCurrency">
+            <option value="$">$ Dollar</option><option value="£">£ Pound</option><option value="€">€ Euro</option>
+            <option value="₹">₹ Rupee</option><option value="৳">৳ Taka</option><option value="₦">₦ Naira</option><option value="R">R Rand</option><option value="KSh ">KSh Shilling</option>
+          </select></div>
+        <div class="fld"><label for="sUnit">Unit size (1 unit = this much money)</label><input id="sUnit" type="number" min="0" step="0.01" inputmode="decimal"></div>
+        <div><button class="btn primary" id="saveSettings" type="button">Save settings</button></div>
+        <hr style="border:0;border-top:1px solid var(--line);width:100%">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="exportCsv" type="button">Export bets as CSV</button>
+          <button class="btn" id="exportCashCsv" type="button">Export deposits as CSV</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn primary" id="backupJson" type="button">Download backup</button>
+          <button class="btn" id="restoreJson" type="button">Restore from backup</button>
+          <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+          <button class="btn danger" id="wipeAll" type="button">Delete all data</button>
+        </div>
+        <p class="note" id="storageNote"></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Bet dialog -->
+<dialog id="betDlg">
+  <form id="betForm" method="dialog">
+    <div class="dlg-h"><h2 id="betDlgTitle">Add bet</h2><button class="btn ghost sm" value="cancel" type="button" data-close>✕</button></div>
+    <div class="dlg-b">
+      <div class="fld"><label for="bDate">Date</label><input id="bDate" type="date" required></div>
+      <div class="fld"><label for="bTipster">Tipster group</label><input id="bTipster" list="tipsterList" placeholder="e.g. Elite Tips VIP" required><datalist id="tipsterList"></datalist></div>
+      <div class="fld full"><label for="bEvent">Event / match</label><input id="bEvent" placeholder="e.g. Arsenal v Chelsea" required></div>
+      <div class="fld"><label for="bPick">Selection</label><input id="bPick" placeholder="e.g. Over 2.5 goals"></div>
+      <div class="fld"><label for="bSport">Sport</label><input id="bSport" list="sportList" placeholder="Football"><datalist id="sportList"><option value="Football"><option value="Cricket"><option value="Tennis"><option value="Basketball"><option value="Horse racing"><option value="Esports"></datalist></div>
+      <div class="fld"><label for="bType">Bet type</label><select id="bType"><option>Single</option><option>Accumulator</option><option>System</option><option>Live</option></select></div>
+      <div class="fld"><label for="bBook">Bookmaker</label><input id="bBook" list="bookList" placeholder="e.g. Bet365"><datalist id="bookList"></datalist></div>
+      <div class="fld"><label for="bOdds">Odds (decimal)</label><input id="bOdds" type="number" min="1.01" step="0.01" inputmode="decimal" required></div>
+      <div class="fld"><label for="bStake">Stake</label><input id="bStake" type="number" min="0.01" step="0.01" inputmode="decimal" required></div>
+      <div class="fld"><label for="bResult">Result</label><select id="bResult"><option value="pending">Pending</option><option value="won">Won</option><option value="lost">Lost</option><option value="void">Void / refund</option><option value="cashout">Cashed out</option></select></div>
+      <div class="fld" id="cashoutFld" hidden><label for="bReturn">Cash-out amount</label><input id="bReturn" type="number" min="0" step="0.01" inputmode="decimal"></div>
+      <div class="fld full"><label for="bNotes">Notes</label><textarea id="bNotes" placeholder="Optional"></textarea></div>
+      <div class="calc"><span>Potential return <b id="cRet">—</b></span><span>Profit if won <b id="cProf">—</b></span><span>Implied chance <b id="cImp">—</b></span></div>
+    </div>
+    <div class="dlg-f">
+      <button class="btn danger left" type="button" id="betDelete" hidden>Delete bet</button>
+      <button class="btn" type="button" data-close>Cancel</button>
+      <button class="btn primary" type="submit" id="betSave">Save bet</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Cash dialog -->
+<dialog id="cashDlg">
+  <form id="cashForm" method="dialog">
+    <div class="dlg-h"><h2 id="cashDlgTitle">Deposit or withdrawal</h2><button class="btn ghost sm" type="button" data-close>✕</button></div>
+    <div class="dlg-b">
+      <div class="fld"><label for="tType">Type</label><select id="tType"><option value="deposit">Deposit</option><option value="withdrawal">Withdrawal</option></select></div>
+      <div class="fld"><label for="tDate">Date</label><input id="tDate" type="date" required></div>
+      <div class="fld"><label for="tAmount">Amount</label><input id="tAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required></div>
+      <div class="fld"><label for="tBook">Bookmaker</label><input id="tBook" list="bookList" placeholder="e.g. Bet365"></div>
+      <div class="fld full"><label for="tNotes">Notes</label><input id="tNotes" placeholder="Optional"></div>
+    </div>
+    <div class="dlg-f">
+      <button class="btn danger left" type="button" id="cashDelete" hidden>Delete</button>
+      <button class="btn" type="button" data-close>Cancel</button>
+      <button class="btn primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- state ---------- */
+const S = { bets:new Map(), cash:new Map(), settings:{currency:"$", unit:10}, period:"month", group:"day", tab:"overview", readOnly:false, mode:"loading" };
+let db = null;
+const LS_KEY = "stake-ledger-v1";
+
+/* ---------- dates ---------- */
+const pad = n => String(n).padStart(2,"0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parse = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+const today = () => ymd(new Date());
+const weekStart = s => { const d = parse(s); const k = (d.getDay()+6)%7; d.setDate(d.getDate()-k); return ymd(d); };
+const monthKey = s => s.slice(0,7);
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmtDay = s => { const d = parse(s); return `${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+const fmtDayLong = s => { const d = parse(s); return `${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; };
+const fmtMonth = k => { const [y,m] = k.split("-"); return `${MONTHS[+m-1]} ${y}`; };
+const fmtWeek = s => { const e = parse(s); e.setDate(e.getDate()+6); return `${fmtDay(s)} – ${fmtDay(ymd(e))}`; };
+
+function periodRange(p){
+  const t = today();
+  if (p==="today") return [t,t];
+  if (p==="week") return [weekStart(t), t];
+  if (p==="month") return [t.slice(0,8)+"01", t];
+  if (p==="year") return [t.slice(0,5)+"01-01", t];
+  return ["0000-01-01","9999-12-31"];
+}
+const PERIOD_LABEL = {today:"Today", week:"This week", month:"This month", year:"This year", all:"All time"};
+
+/* ---------- money ---------- */
+const money = (v, signed) => {
+  const c = S.settings.currency || "$";
+  const a = Math.abs(v), str = a.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+  if (!signed) return (v<0?"−":"") + c + str;
+  return (v>0?"+":v<0?"−":"") + c + str;
+};
+const cls = v => v>0 ? "pos" : v<0 ? "neg" : "";
+const pct = v => isFinite(v) ? (v>0?"+":"") + v.toFixed(1) + "%" : "—";
+
+function profit(b){
+  const st = +b.stake||0, od = +b.odds||0;
+  switch(b.result){
+    case "won": return st*(od-1);
+    case "lost": return -st;
+    case "cashout": return (+b.returns||0) - st;
+    default: return 0;
+  }
+}
+const settled = b => b.result && b.result !== "pending";
+
+function summarize(bets){
+  let staked=0, pl=0, won=0, lost=0, voids=0, pend=0, pendStake=0, oddsSum=0, settledN=0;
+  for (const b of bets){
+    if (!settled(b)){ pend++; pendStake += +b.stake||0; continue; }
+    settledN++;
+    if (b.result==="void") { voids++; continue; }
+    staked += +b.stake||0; pl += profit(b); oddsSum += +b.odds||0;
+    if (b.result==="won" || (b.result==="cashout" && profit(b)>0)) won++; else lost++;
+  }
+  const decided = won+lost;
+  return {n:bets.length, settledN, staked, pl, won, lost, voids, pend, pendStake,
+    roi: staked ? pl/staked*100 : NaN, winRate: decided ? won/decided*100 : NaN, avgOdds: decided ? oddsSum/decided : NaN};
+}
+
+/* ---------- storage ---------- */
+function lsLoad(){ try { const j = JSON.parse(localStorage.getItem(LS_KEY)||"null"); if (j){ j.bets?.forEach(b=>S.bets.set(b.id,b)); j.cash?.forEach(c=>S.cash.set(c.id,c)); if (j.settings) S.settings = {...S.settings, ...j.settings}; } } catch(e){} }
+function lsSave(){ try { localStorage.setItem(LS_KEY, JSON.stringify({bets:[...S.bets.values()], cash:[...S.cash.values()], settings:S.settings})); } catch(e){} }
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+
+async function put(coll, obj){
+  const map = coll==="bets" ? S.bets : S.cash;
+  map.set(obj.id, obj); render();
+  if (db){
+    try { await db.collection(coll).doc(obj.id).set(obj); }
+    catch(e){ handleWriteErr(e); }
+  } else lsSave();
+}
+async function remove(coll, id){
+  const map = coll==="bets" ? S.bets : S.cash;
+  map.delete(id); render();
+  if (db){ try { await db.collection(coll).doc(id).delete(); } catch(e){ handleWriteErr(e); } }
+  else lsSave();
+}
+async function saveSettings(){
+  if (db){ try { await db.doc("settings/main").set({...S.settings}); } catch(e){ handleWriteErr(e); } }
+  else lsSave();
+  render();
+}
+function handleWriteErr(e){
+  if (e?.code==="invalid_argument"){ S.readOnly = true; applyReadOnly(); toast("You can view this tracker but not change it."); }
+  else if (e?.code==="quota_exceeded") toast("Storage is full. Delete some old entries and try again.");
+  else toast("Couldn't save. Check your connection and try again.");
+}
+
+/* ---------- toast ---------- */
+let tT; function toast(msg){ const t=$("#toast"); t.textContent=msg; t.hidden=false; clearTimeout(tT); tT=setTimeout(()=>t.hidden=true, 2600); }
+
+/* ---------- selectors ---------- */
+const allBets = () => [...S.bets.values()].sort((a,b)=> (b.date||"").localeCompare(a.date||"") || (b.createdAt||0)-(a.createdAt||0));
+const allCash = () => [...S.cash.values()].sort((a,b)=> (b.date||"").localeCompare(a.date||"") || (b.createdAt||0)-(a.createdAt||0));
+function inPeriod(list){ const [a,z] = periodRange(S.period); return list.filter(x => x.date>=a && x.date<=z); }
+
+/* ---------- render ---------- */
+function render(){
+  const bets = allBets(), cash = allCash();
+  const anySample = bets.some(b=>b.sample) || cash.some(c=>c.sample);
+  $("#sampleBanner").hidden = !anySample || S.readOnly;
+
+  // header totals (all-time)
+  const all = summarize(bets);
+  const dep = cash.filter(c=>c.type==="deposit").reduce((s,c)=>s+(+c.amount||0),0);
+  const wd = cash.filter(c=>c.type==="withdrawal").reduce((s,c)=>s+(+c.amount||0),0);
+  const bank = dep - wd + all.pl - all.pendStake;
+  $("#hBank").textContent = money(bank);
+  const hpl = $("#hPL"); hpl.textContent = money(all.pl, true); hpl.className = "num " + cls(all.pl);
+
+  // tipster datalist + filter
+  const tipsters = [...new Set(bets.map(b=>b.tipster).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  $("#tipsterList").innerHTML = tipsters.map(t=>`<option value="${esc(t)}">`).join("");
+  const books = [...new Set([...bets.map(b=>b.bookmaker), ...cash.map(c=>c.bookmaker)].filter(Boolean))].sort();
+  $("#bookList").innerHTML = books.map(t=>`<option value="${esc(t)}">`).join("");
+  const fT = $("#fTipster"), cur = fT.value;
+  fT.innerHTML = `<option value="">All tipsters</option>` + tipsters.map(t=>`<option ${t===cur?"selected":""}>${esc(t)}</option>`).join("");
+
+  $("#periodTitle").textContent = {overview:"Overview",bets:"Bets",tipsters:"Tipster groups",reports:"Reports",cash:"Deposits",settings:"Settings"}[S.tab];
+  $("#periodSeg").style.visibility = (S.tab==="settings") ? "hidden" : "visible";
+
+  renderOverview(bets, cash);
+  renderBets(bets);
+  renderTipsters(bets);
+  renderReports(bets, cash);
+  renderCash(cash);
+  renderSettings();
+}
+
+function kpi(label, val, sub, extra=""){ return `<div class="panel kpi ${extra}"><small>${label}</small><div class="v">${val}</div><div class="sub">${sub}</div></div>`; }
+
+function renderOverview(bets, cash){
+  const pb = inPeriod(bets), pc = inPeriod(cash), s = summarize(pb);
+  const dep = pc.filter(c=>c.type==="deposit").reduce((a,c)=>a+(+c.amount||0),0);
+  const wd = pc.filter(c=>c.type==="withdrawal").reduce((a,c)=>a+(+c.amount||0),0);
+  const unit = +S.settings.unit || 0;
+  const units = unit ? `${(s.pl/unit>0?"+":"")}${(s.pl/unit).toFixed(2)} units` : "Set a unit size in Settings";
+  $("#kpis").innerHTML =
+    kpi(`Profit / loss · ${PERIOD_LABEL[S.period]}`, `<span class="${cls(s.pl)}">${money(s.pl,true)}</span>`, units, "hero") +
+    kpi("Return on stake", `<span class="${cls(s.roi)}">${pct(s.roi)}</span>`, `${money(s.staked)} staked on ${s.won+s.lost} settled bets`) +
+    kpi("Win rate", isFinite(s.winRate)? s.winRate.toFixed(1)+"%" : "—", `${s.won} won · ${s.lost} lost${s.voids?` · ${s.voids} void`:""} · avg odds ${isFinite(s.avgOdds)?s.avgOdds.toFixed(2):"—"}`) +
+    kpi("Deposited · withdrawn", `${money(dep)}`, `${money(wd)} withdrawn · ${s.pend} pending (${money(s.pendStake)})`);
+
+  const series = bucketSeries(pb, S.period==="all" || S.period==="year" ? autoGroup(pb) : "day");
+  drawChart($("#plChart"), series);
+
+  // top tipsters
+  const rows = tipsterRows(pb).slice(0,6);
+  $("#topTipsters").innerHTML = rows.length ? `<table><thead><tr><th>Group</th><th class="r">Bets</th><th class="r">Win %</th><th class="r">P/L</th></tr></thead><tbody>${
+    rows.map(r=>`<tr><td><span class="tag">${esc(r.name)}</span></td><td class="r num">${r.won+r.lost}</td><td class="r num">${isFinite(r.winRate)?r.winRate.toFixed(0)+"%":"—"}</td><td class="r num ${cls(r.pl)}">${money(r.pl,true)}</td></tr>`).join("")
+  }</tbody></table>` : emptyMsg("No tipster results yet", "Settle a bet and the group shows up here.");
+
+  $("#recentBets").innerHTML = betsTableHTML(pb.slice(0,8), true);
+}
+
+function emptyMsg(t, s){ return `<div class="empty"><b>${t}</b>${s}</div>`; }
+
+function betsTableHTML(list, compact){
+  if (!list.length) return emptyMsg(S.bets.size ? "No bets in this period" : "No bets yet", S.bets.size ? "Pick a wider period above, or add a bet." : "Press “+ Add bet” to log your first one. Add the stake, odds and which tipster group it came from.");
+  const ro = S.readOnly;
+  return `<table><thead><tr><th>Date</th><th>Event</th><th class="hide-sm">Tipster</th><th class="r">Odds</th><th class="r">Stake</th><th>Result</th><th class="r">P/L</th><th class="r"><span class="hide-sm">Actions</span></th></tr></thead><tbody>${
+    list.map(b=>{
+      const pl = profit(b);
+      const quick = (!ro && b.result==="pending") ? `<button class="btn sm" data-settle="won" data-id="${b.id}" type="button" title="Mark won">Won</button><button class="btn sm" data-settle="lost" data-id="${b.id}" type="button" title="Mark lost">Lost</button>` : "";
+      return `<tr>
+        <td class="num" style="white-space:nowrap">${fmtDay(b.date)}</td>
+        <td class="ev">${esc(b.event)}<small>${esc([b.selection, b.betType!=="Single"?b.betType:"", b.bookmaker].filter(Boolean).join(" · "))}</small></td>
+        <td class="hide-sm"><span class="tag">${esc(b.tipster||"—")}</span></td>
+        <td class="r num">${(+b.odds).toFixed(2)}</td>
+        <td class="r num">${money(+b.stake)}</td>
+        <td><span class="pill p-${b.result}">${b.result==="cashout"?"cash out":b.result}</span></td>
+        <td class="r num ${cls(pl)}">${settled(b) ? money(pl,true) : `<span class="note">to win ${money(b.stake*(b.odds-1))}</span>`}</td>
+        <td><div class="rowact">${quick}${ro?"":`<button class="btn ghost sm" data-edit="${b.id}" type="button" aria-label="Edit bet">Edit</button><button class="btn ghost sm del" data-del="${b.id}" type="button" aria-label="Delete bet">Delete</button>`}</div></td>
+      </tr>`;}).join("")
+  }</tbody></table>`;
+}
+
+function renderBets(bets){
+  const q = $("#fSearch").value.trim().toLowerCase(), t = $("#fTipster").value, r = $("#fResult").value;
+  let list = inPeriod(bets);
+  if (q) list = list.filter(b => [b.event,b.selection,b.notes,b.sport,b.bookmaker].join(" ").toLowerCase().includes(q));
+  if (t) list = list.filter(b => b.tipster===t);
+  if (r) list = list.filter(b => b.result===r);
+  const s = summarize(list);
+  $("#betsTable").innerHTML = (list.length ? `<div class="panel-b"><div class="mini-stats">
+      <div><small>Bets shown</small><b>${list.length}</b></div>
+      <div><small>Staked</small><b>${money(s.staked + s.pendStake)}</b></div>
+      <div><small>P/L</small><b class="${cls(s.pl)}">${money(s.pl,true)}</b></div></div></div>` : "") + betsTableHTML(list);
+}
+
+function tipsterRows(bets){
+  const m = new Map();
+  for (const b of bets){ const k = b.tipster || "Unassigned"; if (!m.has(k)) m.set(k, []); m.get(k).push(b); }
+  return [...m.entries()].map(([name, list]) => {
+    const s = summarize(list);
+    const form = list.filter(settled).slice(0,8).map(b => b.result==="void" ? "v" : profit(b)>0 ? "w" : "l");
+    return {name, ...s, form};
+  }).sort((a,b)=> b.pl - a.pl);
+}
+
+function renderTipsters(bets){
+  const rows = tipsterRows(inPeriod(bets));
+  $("#tipstersTable").innerHTML = rows.length ? `<table><thead><tr><th>#</th><th>Tipster group</th><th class="r">Bets</th><th class="r">W–L</th><th class="r">Win %</th><th class="r">Avg odds</th><th class="r">Staked</th><th class="r">P/L</th><th class="r">ROI</th><th class="hide-sm">Last 8</th><th class="r">Pending</th></tr></thead><tbody>${
+    rows.map((r,i)=>`<tr>
+      <td class="num">${i+1}</td>
+      <td><span class="tag">${esc(r.name)}</span></td>
+      <td class="r num">${r.n}</td>
+      <td class="r num">${r.won}–${r.lost}</td>
+      <td class="r num">${isFinite(r.winRate)?r.winRate.toFixed(0)+"%":"—"}<span class="form-bar"><i style="width:${isFinite(r.winRate)?r.winRate:0}%"></i></span></td>
+      <td class="r num">${isFinite(r.avgOdds)?r.avgOdds.toFixed(2):"—"}</td>
+      <td class="r num">${money(r.staked)}</td>
+      <td class="r num ${cls(r.pl)}"><b>${money(r.pl,true)}</b></td>
+      <td class="r num ${cls(r.roi)}">${pct(r.roi)}</td>
+      <td class="hide-sm"><span class="streak" aria-label="Recent form">${r.form.map(f=>`<i class="${f}"></i>`).join("")||'<span class="note">—</span>'}</span></td>
+      <td class="r num">${r.pend||"—"}</td></tr>`).join("")
+  }</tbody></table>` : emptyMsg("No tipster groups in this period", "Each bet you log is filed under its tipster group. Their records build up here.");
+}
+
+/* ---------- grouping ---------- */
+const keyFn = g => g==="day" ? (s=>s) : g==="week" ? weekStart : monthKey;
+const labelFn = g => g==="day" ? fmtDay : g==="week" ? (s=>fmtDay(s)) : (k=>MONTHS[+k.slice(5)-1]+" "+k.slice(2,4));
+const longLabel = g => g==="day" ? fmtDayLong : g==="week" ? fmtWeek : fmtMonth;
+function autoGroup(list){
+  if (!list.length) return "day";
+  const ds = list.map(b=>b.date).sort(), span = (parse(ds[ds.length-1]) - parse(ds[0]))/864e5;
+  return span > 300 ? "month" : span > 45 ? "week" : "day";
+}
+function bucketSeries(bets, g){
+  const kf = keyFn(g), m = new Map();
+  for (const b of bets){ if (!settled(b)) continue; const k = kf(b.date); m.set(k, (m.get(k)||0) + profit(b)); }
+  const keys = [...m.keys()].sort(); let run = 0;
+  return keys.map(k => { run += m.get(k); return {k, label:labelFn(g)(k), v:m.get(k), cum:run}; });
+}
+
+/* ---------- chart ---------- */
+function drawChart(svg, data){
+  const W = svg.clientWidth || 600, H = 260, L = 64, R = 12, T = 14, B = 28;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  if (!data.length){ svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle">Settle some bets to see your profit and loss here</text>`; return; }
+  const vals = data.flatMap(d=>[d.v, d.cum, 0]);
+  let lo = Math.min(...vals), hi = Math.max(...vals); if (lo===hi){ lo -= 1; hi += 1; }
+  const step = niceStep((hi-lo)/4); lo = Math.floor(lo/step)*step; hi = Math.ceil(hi/step)*step;
+  const y = v => T + (hi - v)/(hi-lo)*(H-T-B);
+  const bw = (W-L-R)/data.length, x = i => L + bw*i + bw/2;
+  let out = "";
+  for (let v = lo; v <= hi + 1e-9; v += step){
+    out += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/>`;
+    out += `<text x="${L-8}" y="${y(v)+3.5}" text-anchor="end">${shortMoney(v)}</text>`;
+  }
+  out += `<line x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--line-strong)" stroke-width="1.2"/>`;
+  const barW = Math.max(2, Math.min(28, bw*0.62));
+  data.forEach((d,i) => {
+    const y0 = y(0), y1 = y(d.v), top = Math.min(y0,y1), h = Math.max(1, Math.abs(y1-y0));
+    out += `<rect x="${x(i)-barW/2}" y="${top}" width="${barW}" height="${h}" rx="2" fill="${d.v>=0?"var(--win)":"var(--loss)"}" opacity=".85"><title>${esc(d.label)}: ${money(d.v,true)} (running ${money(d.cum,true)})</title></rect>`;
+  });
+  const pts = data.map((d,i)=>`${x(i)},${y(d.cum)}`).join(" ");
+  out += `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  const last = data[data.length-1];
+  out += `<circle cx="${x(data.length-1)}" cy="${y(last.cum)}" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>`;
+  const every = Math.ceil(data.length / Math.max(1, Math.floor((W-L-R)/62)));
+  data.forEach((d,i)=>{ if (i % every === 0) out += `<text x="${x(i)}" y="${H-8}" text-anchor="middle">${esc(d.label)}</text>`; });
+  svg.innerHTML = out;
+}
+function niceStep(raw){ const p = Math.pow(10, Math.floor(Math.log10(raw||1))); const f = raw/p; return (f<=1?1:f<=2?2:f<=5?5:10)*p; }
+function shortMoney(v){ const c = S.settings.currency||"$", a = Math.abs(v); const s = a>=1e6 ? (a/1e6).toFixed(1)+"m" : a>=1e4 ? (a/1e3).toFixed(0)+"k" : a>=1e3 ? (a/1e3).toFixed(1)+"k" : a.toFixed(a<10 && a%1 ? 1 : 0); return (v<0?"−":"")+c.trim()+s; }
+
+/* ---------- reports ---------- */
+function renderReports(bets, cash){
+  const g = S.group, kf = keyFn(g);
+  $("#reportTitle").textContent = {day:"Daily",week:"Weekly",month:"Monthly"}[g] + " breakdown · " + PERIOD_LABEL[S.period];
+  const pb = inPeriod(bets), pc = inPeriod(cash);
+  const m = new Map(), get = k => { if (!m.has(k)) m.set(k,{bets:[],dep:0,wd:0}); return m.get(k); };
+  pb.forEach(b => get(kf(b.date)).bets.push(b));
+  pc.forEach(c => { const r = get(kf(c.date)); if (c.type==="deposit") r.dep += +c.amount||0; else r.wd += +c.amount||0; });
+  const keys = [...m.keys()].sort().reverse();
+  drawChart($("#repChart"), bucketSeries(pb, g));
+  if (!keys.length){ $("#reportTable").innerHTML = emptyMsg("Nothing logged in this period", "Bets and deposits are grouped here by day, week or month."); return; }
+  let tot = {n:0,won:0,lost:0,staked:0,pl:0,dep:0,wd:0};
+  const rows = keys.map(k => { const r = m.get(k), s = summarize(r.bets);
+    tot.n+=s.n; tot.won+=s.won; tot.lost+=s.lost; tot.staked+=s.staked; tot.pl+=s.pl; tot.dep+=r.dep; tot.wd+=r.wd;
+    return `<tr><td style="white-space:nowrap">${longLabel(g)(k)}</td><td class="r num">${s.n}</td><td class="r num">${s.won}–${s.lost}</td><td class="r num">${isFinite(s.winRate)?s.winRate.toFixed(0)+"%":"—"}</td><td class="r num">${money(s.staked)}</td><td class="r num ${cls(s.pl)}"><b>${money(s.pl,true)}</b></td><td class="r num ${cls(s.roi)}">${pct(s.roi)}</td><td class="r num">${r.dep?money(r.dep):"—"}</td><td class="r num">${r.wd?money(r.wd):"—"}</td></tr>`;
+  }).join("");
+  const troi = tot.staked ? tot.pl/tot.staked*100 : NaN, twr = (tot.won+tot.lost) ? tot.won/(tot.won+tot.lost)*100 : NaN;
+  $("#reportTable").innerHTML = `<table><thead><tr><th>${{day:"Day",week:"Week",month:"Month"}[g]}</th><th class="r">Bets</th><th class="r">W–L</th><th class="r">Win %</th><th class="r">Staked</th><th class="r">P/L</th><th class="r">ROI</th><th class="r">Deposited</th><th class="r">Withdrawn</th></tr></thead><tbody>${rows}
+    <tr style="font-weight:600"><td>Total</td><td class="r num">${tot.n}</td><td class="r num">${tot.won}–${tot.lost}</td><td class="r num">${isFinite(twr)?twr.toFixed(0)+"%":"—"}</td><td class="r num">${money(tot.staked)}</td><td class="r num ${cls(tot.pl)}">${money(tot.pl,true)}</td><td class="r num ${cls(troi)}">${pct(troi)}</td><td class="r num">${money(tot.dep)}</td><td class="r num">${money(tot.wd)}</td></tr></tbody></table>`;
+}
+
+/* ---------- cash ---------- */
+function renderCash(cash){
+  const pc = inPeriod(cash);
+  const dep = pc.filter(c=>c.type==="deposit").reduce((a,c)=>a+(+c.amount||0),0);
+  const wd = pc.filter(c=>c.type==="withdrawal").reduce((a,c)=>a+(+c.amount||0),0);
+  $("#cashStats").innerHTML = `<div><small>Deposited</small><b>${money(dep)}</b></div><div><small>Withdrawn</small><b>${money(wd)}</b></div><div><small>Net put in</small><b class="${cls(-(dep-wd))}">${money(dep-wd)}</b></div>`;
+  $("#cashTable").innerHTML = pc.length ? `<table><thead><tr><th>Date</th><th>Type</th><th>Bookmaker</th><th class="hide-sm">Notes</th><th class="r">Amount</th><th></th></tr></thead><tbody>${
+    pc.map(c=>`<tr><td class="num" style="white-space:nowrap">${fmtDayLong(c.date)}</td><td><span class="pill ${c.type==="deposit"?"p-dep":"p-wd"}">${c.type}</span></td><td>${esc(c.bookmaker||"—")}</td><td class="hide-sm note">${esc(c.notes||"")}</td><td class="r num ${c.type==="deposit"?"":"pos"}">${c.type==="deposit"?"":"+"}${money(+c.amount)}</td><td><div class="rowact">${S.readOnly?"":`<button class="btn ghost sm" data-editcash="${c.id}" type="button">Edit</button><button class="btn ghost sm del" data-delcash="${c.id}" type="button" aria-label="Delete entry">Delete</button>`}</div></td></tr>`).join("")
+  }</tbody></table>` : emptyMsg(S.cash.size ? "No deposits or withdrawals in this period" : "No deposits logged yet", "Log each deposit and withdrawal so your bankroll and real profit stay accurate.");
+}
+
+function renderSettings(){
+  if (document.activeElement?.id !== "sCurrency") $("#sCurrency").value = S.settings.currency || "$";
+  if (document.activeElement?.id !== "sUnit") $("#sUnit").value = S.settings.unit ?? "";
+  $("#storageNote").textContent = S.mode==="db" ? "Your entries are saved to your account and only you can see them." : S.mode==="local" ? "Your entries are saved only in this browser on this device. Nothing is sent anywhere. Download a backup regularly, and use Restore to move your data to another phone or computer." : "";
+}
+
+/* ---------- tabs & periods ---------- */
+function setTab(t){
+  S.tab = t;
+  $$("#tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab===t)));
+  $$(".view").forEach(v => v.hidden = v.dataset.view !== t);
+  try { history.replaceState(null, "", "#"+t); } catch(e){}
+  render();
+}
+$("#tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (b) setTab(b.dataset.tab); });
+$$("[data-goto]").forEach(b => b.addEventListener("click", () => setTab(b.dataset.goto)));
+$("#periodSeg").addEventListener("click", e => { const b = e.target.closest("[data-p]"); if (!b) return; S.period = b.dataset.p; $$("#periodSeg button").forEach(x=>x.setAttribute("aria-pressed", String(x===b))); try{localStorage.setItem(LS_KEY+":period",S.period);}catch(e){} render(); });
+$("#groupSeg").addEventListener("click", e => { const b = e.target.closest("[data-g]"); if (!b) return; S.group = b.dataset.g; $$("#groupSeg button").forEach(x=>x.setAttribute("aria-pressed", String(x===b))); render(); });
+["#fSearch","#fTipster","#fResult"].forEach(s => $(s).addEventListener("input", () => renderBets(allBets())));
+
+/* ---------- bet dialog ---------- */
+let editingBet = null;
+function openBet(b){
+  if (S.readOnly) return;
+  editingBet = b || null;
+  $("#betDlgTitle").textContent = b ? "Edit bet" : "Add bet";
+  $("#betDelete").hidden = !b;
+  $("#bDate").value = b?.date || today();
+  $("#bTipster").value = b?.tipster || "";
+  $("#bEvent").value = b?.event || "";
+  $("#bPick").value = b?.selection || "";
+  $("#bSport").value = b?.sport || "";
+  $("#bType").value = b?.betType || "Single";
+  $("#bBook").value = b?.bookmaker || "";
+  $("#bOdds").value = b?.odds ?? "";
+  $("#bStake").value = b?.stake ?? (S.settings.unit || "");
+  $("#bResult").value = b?.result || "pending";
+  $("#bReturn").value = b?.returns ?? "";
+  $("#bNotes").value = b?.notes || "";
+  syncCalc(); $("#betDlg").showModal();
+}
+function syncCalc(){
+  const o = +$("#bOdds").value, s = +$("#bStake").value;
+  $("#cashoutFld").hidden = $("#bResult").value !== "cashout";
+  $("#cRet").textContent = o>1 && s>0 ? money(o*s) : "—";
+  $("#cProf").textContent = o>1 && s>0 ? money(s*(o-1)) : "—";
+  $("#cImp").textContent = o>1 ? (100/o).toFixed(1)+"%" : "—";
+}
+["#bOdds","#bStake","#bResult"].forEach(s => $(s).addEventListener("input", syncCalc));
+$("#betForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const odds = +$("#bOdds").value, stake = +$("#bStake").value;
+  if (!(odds>1) || !(stake>0)) { toast("Enter odds above 1.00 and a stake above zero."); return; }
+  const b = {
+    id: editingBet?.id || newId(), createdAt: editingBet?.createdAt || Date.now(),
+    date: $("#bDate").value || today(), tipster: $("#bTipster").value.trim(), event: $("#bEvent").value.trim(),
+    selection: $("#bPick").value.trim(), sport: $("#bSport").value.trim(), betType: $("#bType").value,
+    bookmaker: $("#bBook").value.trim(), odds, stake, result: $("#bResult").value,
+    returns: $("#bResult").value==="cashout" ? (+$("#bReturn").value||0) : null, notes: $("#bNotes").value.trim()
+  };
+  put("bets", b); $("#betDlg").close(); toast(editingBet ? "Bet updated" : "Bet added");
+});
+$("#betDelete").addEventListener("click", () => {
+  const btn = $("#betDelete");
+  if (btn.dataset.confirm !== "1"){ btn.dataset.confirm = "1"; btn.textContent = "Tap again to delete"; setTimeout(()=>{btn.dataset.confirm="";btn.textContent="Delete bet";}, 3000); return; }
+  btn.dataset.confirm=""; btn.textContent="Delete bet";
+  remove("bets", editingBet.id); $("#betDlg").close(); toast("Bet deleted");
+});
+
+/* ---------- cash dialog ---------- */
+let editingCash = null;
+function openCash(c){
+  if (S.readOnly) return;
+  editingCash = c || null;
+  $("#cashDlgTitle").textContent = c ? "Edit entry" : "Deposit or withdrawal";
+  $("#cashDelete").hidden = !c;
+  $("#tType").value = c?.type || "deposit"; $("#tDate").value = c?.date || today();
+  $("#tAmount").value = c?.amount ?? ""; $("#tBook").value = c?.bookmaker || ""; $("#tNotes").value = c?.notes || "";
+  $("#cashDlg").showModal();
+}
+$("#cashForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const amount = +$("#tAmount").value; if (!(amount>0)) { toast("Enter an amount above zero."); return; }
+  put("cash", { id: editingCash?.id || newId(), createdAt: editingCash?.createdAt || Date.now(), type:$("#tType").value, date:$("#tDate").value||today(), amount, bookmaker:$("#tBook").value.trim(), notes:$("#tNotes").value.trim() });
+  $("#cashDlg").close(); toast($("#tType").value==="deposit" ? "Deposit saved" : "Withdrawal saved");
+});
+$("#cashDelete").addEventListener("click", () => {
+  const btn = $("#cashDelete");
+  if (btn.dataset.confirm !== "1"){ btn.dataset.confirm = "1"; btn.textContent = "Tap again to delete"; setTimeout(()=>{btn.dataset.confirm="";btn.textContent="Delete";}, 3000); return; }
+  btn.dataset.confirm=""; btn.textContent="Delete";
+  remove("cash", editingCash.id); $("#cashDlg").close(); toast("Entry deleted");
+});
+$$("[data-close]").forEach(b => b.addEventListener("click", () => b.closest("dialog").close()));
+
+$("#btnBet").addEventListener("click", () => openBet());
+$("#btnCash").addEventListener("click", () => openCash());
+$("#btnCash2").addEventListener("click", () => openCash());
+$("#main").addEventListener("click", e => {
+  const ed = e.target.closest("[data-edit]"); if (ed) return openBet(S.bets.get(ed.dataset.edit));
+  const ec = e.target.closest("[data-editcash]"); if (ec) return openCash(S.cash.get(ec.dataset.editcash));
+  const del = e.target.closest("[data-del],[data-delcash]");
+  if (del){
+    if (del.dataset.confirm !== "1"){ del.dataset.confirm = "1"; del.textContent = "Confirm?"; del.classList.add("armed"); setTimeout(()=>{ if (del.isConnected){ del.dataset.confirm=""; del.textContent="Delete"; del.classList.remove("armed"); } }, 3000); return; }
+    if (del.dataset.del){ remove("bets", del.dataset.del); toast("Bet deleted"); }
+    else { remove("cash", del.dataset.delcash); toast("Entry deleted"); }
+    return;
+  }
+  const st = e.target.closest("[data-settle]");
+  if (st){ const b = S.bets.get(st.dataset.id); if (b){ put("bets", {...b, result: st.dataset.settle}); toast(`Marked ${st.dataset.settle}`); } }
+});
+
+/* ---------- settings & export ---------- */
+$("#saveSettings").addEventListener("click", () => { S.settings = {...S.settings, currency:$("#sCurrency").value, unit:+$("#sUnit").value||0}; saveSettings(); toast("Settings saved"); });
+$("#clearSample").addEventListener("click", async () => {
+  const btn = $("#clearSample");
+  if (btn.dataset.confirm !== "1"){ btn.dataset.confirm="1"; btn.textContent="Tap again to clear"; setTimeout(()=>{btn.dataset.confirm="";btn.textContent="Clear example entries";},3000); return; }
+  const bs = [...S.bets.values()].filter(b=>b.sample), cs = [...S.cash.values()].filter(c=>c.sample);
+  for (const b of bs) await remove("bets", b.id);
+  for (const c of cs) await remove("cash", c.id);
+  toast("Example entries cleared");
+});
+const csvCell = v => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; };
+function saveFile(filename, data, type){
+  const url = URL.createObjectURL(new Blob([data], {type}));
+  const a = document.createElement("a"); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function download(filename, rows){ saveFile(filename, "\ufeff" + rows.map(r => r.map(csvCell).join(",")).join("\n"), "text/csv;charset=utf-8"); }
+$("#backupJson").addEventListener("click", () => { saveFile(`stake-ledger-backup-${today()}.json`, JSON.stringify({app:"stake-ledger", version:1, exported:new Date().toISOString(), bets:[...S.bets.values()], cash:[...S.cash.values()], settings:S.settings}, null, 2), "application/json"); toast("Backup saved"); });
+$("#restoreJson").addEventListener("click", () => $("#restoreFile").click());
+$("#restoreFile").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    if (!Array.isArray(j.bets) || !Array.isArray(j.cash)) throw 0;
+    j.bets.forEach(b => b && b.id && S.bets.set(b.id, b));
+    j.cash.forEach(c => c && c.id && S.cash.set(c.id, c));
+    if (j.settings) S.settings = {...S.settings, ...j.settings};
+    lsSave(); render(); toast(`Restored ${j.bets.length} bets and ${j.cash.length} money entries`);
+  } catch(_) { toast("That file isn't a Stake Ledger backup."); }
+});
+$("#wipeAll").addEventListener("click", () => {
+  const btn = $("#wipeAll");
+  if (btn.dataset.confirm !== "1"){ btn.dataset.confirm="1"; btn.textContent="Tap again to delete everything"; setTimeout(()=>{btn.dataset.confirm="";btn.textContent="Delete all data";},3000); return; }
+  S.bets.clear(); S.cash.clear(); lsSave(); render(); btn.dataset.confirm=""; btn.textContent="Delete all data"; toast("All data deleted");
+});
+$("#exportCsv").addEventListener("click", () => download(`bets-${today()}.csv`, [["Date","Tipster","Event","Selection","Sport","Type","Bookmaker","Odds","Stake","Result","Cash-out","Profit","Notes"], ...allBets().map(b=>[b.date,b.tipster,b.event,b.selection,b.sport,b.betType,b.bookmaker,b.odds,b.stake,b.result,b.returns??"",profit(b).toFixed(2),b.notes])]));
+$("#exportCashCsv").addEventListener("click", () => download(`deposits-${today()}.csv`, [["Date","Type","Amount","Bookmaker","Notes"], ...allCash().map(c=>[c.date,c.type,c.amount,c.bookmaker,c.notes])]));
+
+function applyReadOnly(){
+  ["#btnBet","#btnCash","#btnCash2","#saveSettings"].forEach(s => { $(s).disabled = S.readOnly; });
+  if (S.readOnly){ $("#statusBanner").hidden = false; $("#statusText").textContent = "You can view this tracker, but only its owner can add or change entries."; }
+  render();
+}
+
+/* ---------- boot ---------- */
+try { const p = localStorage.getItem(LS_KEY+":period"); if (p && PERIOD_LABEL[p]) { S.period = p; $$("#periodSeg button").forEach(x=>x.setAttribute("aria-pressed", String(x.dataset.p===p))); } } catch(e){}
+const h = (location.hash||"").slice(1); if (["overview","bets","tipsters","reports","cash","settings"].includes(h)) S.tab = h;
+setTab(S.tab);
+window.addEventListener("resize", () => { clearTimeout(window.__rz); window.__rz = setTimeout(render, 150); });
+
+S.mode = "local"; lsLoad(); render();
+})();
+</script>
+
+</body>
+</html>
