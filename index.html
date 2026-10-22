@@ -65,6 +65,9 @@ header .btn{background:transparent;color:var(--head-fg);border-color:rgba(255,25
 .wl button.on.w{background:var(--win);color:#fff}
 .wl button.on.l{background:var(--loss);color:#fff}
 .add .btn.primary{height:40px}
+.acts{display:inline-flex;gap:4px}
+.editing{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+tr.being-edited td{background:var(--accent-soft)}
 .note-row{grid-column:1/-1}
 
 /* totals */
@@ -103,7 +106,7 @@ footer .linkbtn{background:none;border:0;padding:0;color:var(--accent);cursor:po
 }
 @media (max-width:480px){.hide-sm{display:none}.tot .v{font-size:19px}
   table{font-size:13px}th,td{padding:8px 4px}th:first-child,td:first-child{padding-left:12px}th:last-child,td:last-child{padding-right:12px}
-  .tag{font-size:12px;padding:1px 6px}.btn.sm{padding:3px 7px;font-size:12px}.ph{padding:12px 12px 8px}}
+  .tag{font-size:12px;padding:1px 6px}.btn.sm{padding:3px 7px;font-size:12px}.ph{padding:12px 12px 8px}.acts{flex-direction:column}}
 </style>
 </head>
 <body>
@@ -117,7 +120,7 @@ footer .linkbtn{background:none;border:0;padding:0;color:var(--accent);cursor:po
 <main class="wrap">
   <!-- Add -->
   <section class="panel">
-    <div class="ph"><h2>Add today's result</h2></div>
+    <div class="ph"><h2 id="formTitle">Add today's result</h2><button class="btn sm" type="button" id="cancelEdit" hidden>Cancel edit</button></div>
     <form class="pb add" id="addForm" autocomplete="off">
       <div class="fld"><label for="fDate">Date</label><input type="date" id="fDate" required></div>
       <div class="fld grp"><label for="fGroup">Tipster group</label><input id="fGroup" list="groupList" placeholder="e.g. Elite Tips VIP" required><datalist id="groupList"></datalist></div>
@@ -127,7 +130,7 @@ footer .linkbtn{background:none;border:0;padding:0;color:var(--accent);cursor:po
           <button type="button" class="l" id="lBtn" aria-pressed="false">Lost</button>
         </div></div>
       <div class="fld"><label for="fAmount">Amount</label><input type="number" id="fAmount" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required></div>
-      <button class="btn primary" type="submit">Add</button>
+      <button class="btn primary" type="submit" id="submitBtn">Add</button>
       <div class="fld note-row"><label for="fNote">Note (optional)</label><input id="fNote" placeholder="e.g. 3 tips, 2 won"></div>
     </form>
   </section>
@@ -250,7 +253,7 @@ function render(){
   else {
     const s = sum(list);
     $("#entries").innerHTML = `<table><thead><tr><th>Date</th><th>Tipster group</th><th class="hide-sm">Note</th><th class="r">Won / lost</th><th></th></tr></thead><tbody>${
-      list.map(e=>`<tr><td class="num">${fDay(e.date)}</td><td><span class="tag">${esc(e.group)}</span></td><td class="hide-sm muted">${esc(e.note)}</td><td class="r num ${cls(e.amount)}">${money(e.amount,true)}</td><td class="r"><button class="btn sm del" type="button" data-del="${e.id}">Delete</button></td></tr>`).join("")
+      list.map(e=>`<tr class="${e.id===editingId?"being-edited":""}"><td class="num">${fDay(e.date)}</td><td><span class="tag">${esc(e.group)}</span></td><td class="hide-sm muted">${esc(e.note)}</td><td class="r num ${cls(e.amount)}">${money(e.amount,true)}</td><td class="r"><span class="acts"><button class="btn sm" type="button" data-edit="${e.id}">Edit</button><button class="btn sm del" type="button" data-del="${e.id}">Delete</button></span></td></tr>`).join("")
     }</tbody><tfoot><tr><td colspan="2">${fMonth(S.month)} total</td><td class="hide-sm"></td><td class="r num ${cls(s.net)}">${money(s.net,true)}</td><td></td></tr></tfoot></table>`;
   }
   $("#curSel").value = S.currency;
@@ -283,16 +286,43 @@ $("#addForm").addEventListener("submit", e => {
   const amt = +$("#fAmount").value, group = $("#fGroup").value.trim();
   if (!(amt>0)) { toast("Enter an amount above zero."); return; }
   if (!group) { toast("Enter the tipster group name."); return; }
-  S.entries.push({ id:newId(), date:$("#fDate").value || today(), group, amount: Math.round((isWin?amt:-amt)*100)/100, note:$("#fNote").value.trim(), createdAt:Date.now() });
-  save(); S.month = ($("#fDate").value || today()).slice(0,7); render();
-  $("#fAmount").value = ""; $("#fNote").value = ""; $("#fAmount").focus();
-  toast(isWin ? `Added: won ${money(amt)}` : `Added: lost ${money(amt)}`);
+  const data = { date:$("#fDate").value || today(), group, amount: Math.round((isWin?amt:-amt)*100)/100, note:$("#fNote").value.trim() };
+  if (editingId){
+    S.entries = S.entries.map(x => x.id===editingId ? {...x, ...data} : x);
+    toast("Entry updated"); stopEdit();
+  } else {
+    S.entries.push({ id:newId(), createdAt:Date.now(), ...data });
+    toast(isWin ? `Added: won ${money(amt)}` : `Added: lost ${money(amt)}`);
+    $("#fAmount").value = ""; $("#fNote").value = ""; $("#fAmount").focus();
+  }
+  save(); S.month = data.date.slice(0,7); render();
 });
+
+/* edit */
+let editingId = null;
+function startEdit(id){
+  const x = S.entries.find(e => e.id===id); if (!x) return;
+  editingId = id;
+  $("#fDate").value = x.date; $("#fGroup").value = x.group; $("#fAmount").value = Math.abs(x.amount); $("#fNote").value = x.note || "";
+  setWL(x.amount >= 0);
+  $("#formTitle").textContent = "Edit entry"; $("#submitBtn").textContent = "Save changes"; $("#cancelEdit").hidden = false;
+  $("#addForm").closest(".panel").classList.add("editing");
+  render(); $("#addForm").closest(".panel").scrollIntoView({behavior:"smooth", block:"start"}); $("#fAmount").focus({preventScroll:true});
+}
+function stopEdit(){
+  editingId = null;
+  $("#formTitle").textContent = "Add today's result"; $("#submitBtn").textContent = "Add"; $("#cancelEdit").hidden = true;
+  $("#addForm").closest(".panel").classList.remove("editing");
+  $("#fDate").value = today(); $("#fGroup").value = ""; $("#fAmount").value = ""; $("#fNote").value = ""; setWL(true);
+}
+$("#cancelEdit").addEventListener("click", () => { stopEdit(); render(); });
 
 /* delete (tap twice) */
 $("#entries").addEventListener("click", e => {
+  const ed = e.target.closest("[data-edit]"); if (ed) { startEdit(ed.dataset.edit); return; }
   const b = e.target.closest("[data-del]"); if (!b) return;
   if (b.dataset.armed !== "1"){ b.dataset.armed="1"; b.classList.add("armed"); b.textContent="Confirm"; setTimeout(()=>{ if (b.isConnected){ b.dataset.armed=""; b.classList.remove("armed"); b.textContent="Delete"; } }, 3000); return; }
+  if (b.dataset.del===editingId) stopEdit();
   S.entries = S.entries.filter(x => x.id !== b.dataset.del); save(); render(); toast("Entry deleted");
 });
 
